@@ -1,0 +1,5 @@
+status=free
+holder=
+machine=
+since=
+note=initial

@@ -1,0 +1,22 @@
+# Keep shell scripts LF so they run on macOS even when committed from Windows.
+*.sh        text eol=lf
+*.command   text eol=lf
+
+# Keep Windows scripts CRLF.
+*.ps1       text eol=crlf
+*.bat       text eol=crlf
+
+# The lock + version files are read by both Windows and Mac — force LF, no fuss.
+SESSION-LOCK.txt   text eol=lf
+server/version.txt text eol=lf
+
+# Treat Minecraft world data as raw binary: never line-ending convert or merge.
+*.mca     binary
+*.mcr     binary
+*.dat     binary
+*.dat_old binary
+*.nbt     binary
+*.jar     binary
+*.zip     binary
+*.png     binary
+*.gz      binary

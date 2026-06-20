@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# Minecraft server RUNTIME files — downloaded/generated per machine, NOT shared.
+# ---------------------------------------------------------------------------
+server/server.jar
+server/libraries/
+server/versions/
+server/logs/
+server/crash-reports/
+server/debug/
+server/cache/
+server/*.log
+server/hs_err_pid*
+server/.console_history*
+
+# The world's per-machine lock that Minecraft creates while running.
+# This MUST stay out of Git or it causes false conflicts between machines.
+**/session.lock
+
+# ---------------------------------------------------------------------------
+# IDE / editor project files (each person's own; not shared)
+# ---------------------------------------------------------------------------
+.idea/
+*.iml
+.vscode/
+# Stray PyCharm "new project" stub — not part of the server.
+main.py
+
+# ---------------------------------------------------------------------------
+# OS noise
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Note: server/world/ (the actual map), server/server.properties, eula.txt,
+# ops.json, whitelist.json, server/version.txt and backups/ ARE tracked on
+# purpose — that's how the world syncs between the two of you.
