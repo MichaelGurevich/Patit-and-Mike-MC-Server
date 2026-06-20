@@ -4,7 +4,11 @@
 #  config.ps1 must be dot-sourced BEFORE this file.
 # ===========================================================================
 
-$ErrorActionPreference = "Stop"
+# Keep this at Continue, NOT Stop. Under Stop, native git commands that print
+# normal progress to stderr (fetch/pull/push) raise *terminating* errors the
+# moment their streams are redirected (e.g. "*> $null"). We guard the calls that
+# matter with explicit $LASTEXITCODE checks and `throw` instead.
+$ErrorActionPreference = "Continue"
 
 # --- Paths -----------------------------------------------------------------
 $RepoRoot  = Split-Path $PSScriptRoot -Parent
@@ -139,7 +143,12 @@ function New-Backup {
     $dest = Join-Path $BackupDir $name
     if (Test-Path $dest) { Remove-Item $dest -Force }
     Write-Host "Creating backup $name ..."
-    Compress-Archive -Path $world -DestinationPath $dest -CompressionLevel Optimal
+    try {
+        Compress-Archive -Path $world -DestinationPath $dest -CompressionLevel Optimal -ErrorAction Stop
+    } catch {
+        Write-Host "WARNING: backup zip failed ($($_.Exception.Message)). Continuing - the world is still saved in Git." -ForegroundColor Yellow
+        return
+    }
     $zips = Get-ChildItem $BackupDir -Filter "world-*.zip" | Sort-Object Name -Descending
     if ($zips.Count -gt $BACKUP_KEEP) {
         $zips | Select-Object -Skip $BACKUP_KEEP | ForEach-Object { Remove-Item $_.FullName -Force }

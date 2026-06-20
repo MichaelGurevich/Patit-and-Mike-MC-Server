@@ -36,22 +36,22 @@ function Resolve-Version {
     if ($MC_VERSION_OVERRIDE) { return $MC_VERSION_OVERRIDE }
     if (Test-Path $verFile)   { return (Get-Content $verFile -Raw).Trim() }
     Write-Host "Looking up the latest Minecraft version..."
-    $manifest = Invoke-RestMethod $MANIFEST_URL
+    $manifest = Invoke-RestMethod $MANIFEST_URL -ErrorAction Stop
     $v = $manifest.latest.release
     [System.IO.File]::WriteAllText($verFile, $v, (New-Object System.Text.UTF8Encoding($false)))
     return $v
 }
 
 function Download-Server([string]$V) {
-    $manifest = Invoke-RestMethod $MANIFEST_URL
+    $manifest = Invoke-RestMethod $MANIFEST_URL -ErrorAction Stop
     $entry = $manifest.versions | Where-Object { $_.id -eq $V } | Select-Object -First 1
     if (-not $entry) { throw "Version $V not found in Mojang's manifest." }
-    $meta = Invoke-RestMethod $entry.url
+    $meta = Invoke-RestMethod $entry.url -ErrorAction Stop
     $url = $meta.downloads.server.url
     if (-not $url) { throw "No server download is available for $V." }
     $jar = Join-Path $ServerDir "server.jar"
     Write-Host "Downloading Minecraft $V server.jar ..."
-    Invoke-WebRequest -Uri $url -OutFile $jar
+    Invoke-WebRequest -Uri $url -OutFile $jar -ErrorAction Stop
 }
 
 function Setup-Tailscale {
