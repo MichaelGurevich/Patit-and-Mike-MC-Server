@@ -1,0 +1,21 @@
+appId: com.patitmike.mcdashboard
+productName: MC Server Dashboard
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - node_modules/**
+asarUnpack:
+  - node_modules/archiver/**
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+  category: public.app-category.games
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

@@ -17,6 +17,14 @@ server/.console_history*
 **/session.lock
 
 # ---------------------------------------------------------------------------
+# Dashboard (Electron app) build output + dependencies
+# ---------------------------------------------------------------------------
+dashboard/node_modules/
+dashboard/out/
+dashboard/dist/
+dashboard/release/
+
+# ---------------------------------------------------------------------------
 # IDE / editor project files (each person's own; not shared)
 # ---------------------------------------------------------------------------
 .idea/
