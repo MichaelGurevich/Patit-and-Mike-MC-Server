@@ -34,15 +34,27 @@ npm install      # first time only
 npm run dev
 ```
 
-## Make it a real double-click app (installer)
-Build a native installer you can pin to your taskbar/dock:
+## Make it a real double-click app
+
+**Recommended — portable app (no admin, no code-signing):**
 ```
 cd dashboard
-npm run package:win    # Windows -> dashboard/release/*.exe
-npm run package:mac    # Mac     -> dashboard/release/*.dmg
+npm run pack:win    # Windows -> dashboard/release/MCServerDashboard-win32-x64/MCServerDashboard.exe
+npm run pack:mac    # Mac     -> dashboard/release/MCServerDashboard-darwin-*/MCServerDashboard.app
 ```
-Each person builds on their own OS. If you launch the installed app from outside
-the repo, it'll ask you to point it at the server folder once (remembered after).
+Double-click the `.exe` / `.app` (or pin it to your taskbar/dock). Each person
+builds on their own OS.
+
+**Optional — full NSIS installer / .dmg** (`npm run package:win` / `package:mac`):
+this uses `electron-builder`, which on Windows needs permission to create symlinks
+while unpacking its code-signing toolkit. If you hit
+*"Cannot create symbolic link : A required privilege is not held"*, either turn on
+**Settings → System → For developers → Developer Mode**, or run the command from a
+terminal opened **as Administrator**, then retry. The portable `pack:*` route above
+avoids this entirely.
+
+If you launch the packaged app from outside the repo, it'll ask you to point it at
+the server folder once (remembered after).
 
 ## Notes
 - Use **either** the dashboard **or** the `play-*` scripts to host — not both at
