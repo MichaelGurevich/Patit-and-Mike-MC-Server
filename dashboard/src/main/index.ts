@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { findRepoRoot, setRepoRoot, repoPaths, looksLikeRepo, DEFAULT_CONFIG } from './paths'
 import { ServerController, type ServerState } from './server'
 import { forceUnlock, readLock } from './git'
+import { readRoster } from './players'
+import { getCapabilities } from './capabilities'
 
 let win: BrowserWindow | null = null
 let controller: ServerController | null = null
@@ -20,7 +22,8 @@ function buildController(root: string): void {
     state: (s: ServerState) => {
       send('state', s)
       if (s === 'stopped' && quitting) app.quit()
-    }
+    },
+    event: (ev) => send('event', ev)
   })
 }
 
@@ -64,11 +67,15 @@ app.whenReady().then(() => {
   ipcMain.handle('getStatus', () => ({
     repoRoot,
     state: controller?.getState() ?? 'idle',
+    readyAt: controller?.getReadyAt() ?? null,
     lock: repoRoot ? readLock(repoPaths(repoRoot)) : null
   }))
   ipcMain.handle('start', () => controller?.start())
   ipcMain.handle('stop', () => controller?.stop())
   ipcMain.handle('send', (_e, cmd: string) => controller?.send(cmd))
+  ipcMain.handle('setPerf', (_e, on: boolean) => controller?.setPerfPolling(on))
+  ipcMain.handle('getRoster', () => (repoRoot ? readRoster(repoPaths(repoRoot)) : []))
+  ipcMain.handle('getCapabilities', () => (repoRoot ? getCapabilities(repoRoot, DEFAULT_CONFIG) : null))
   ipcMain.handle('forceUnlock', async () => {
     if (!repoRoot) return
     await forceUnlock(repoPaths(repoRoot), DEFAULT_CONFIG, (l) => send('log', l))
