@@ -5,6 +5,7 @@ import { ServerController, type ServerState } from './server'
 import { forceUnlock, readLock } from './git'
 import { readRoster } from './players'
 import { getCapabilities } from './capabilities'
+import { readProperties, setProperty } from './properties'
 
 let win: BrowserWindow | null = null
 let controller: ServerController | null = null
@@ -76,6 +77,13 @@ app.whenReady().then(() => {
   ipcMain.handle('setPerf', (_e, on: boolean) => controller?.setPerfPolling(on))
   ipcMain.handle('getRoster', () => (repoRoot ? readRoster(repoPaths(repoRoot)) : []))
   ipcMain.handle('getCapabilities', () => (repoRoot ? getCapabilities(repoRoot, DEFAULT_CONFIG) : null))
+  ipcMain.handle('getProps', () => (repoRoot ? readProperties(repoPaths(repoRoot)) : {}))
+  ipcMain.handle('setDifficulty', (_e, value: string) => {
+    if (!repoRoot) return
+    // Persist for next start (and Git sync) AND apply live if the server is up.
+    setProperty(repoPaths(repoRoot), 'difficulty', value)
+    controller?.send(`difficulty ${value}`)
+  })
   ipcMain.handle('forceUnlock', async () => {
     if (!repoRoot) return
     await forceUnlock(repoPaths(repoRoot), DEFAULT_CONFIG, (l) => send('log', l))

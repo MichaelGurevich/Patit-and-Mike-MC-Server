@@ -185,6 +185,19 @@ button.big {
   border-radius: 10px;
 }
 
+.diffbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dlabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+.hint2 {
+  font-size: 11px;
+}
+
 .console-toolbar {
   display: flex;
   align-items: center;

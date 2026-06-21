@@ -46,6 +46,13 @@ const QUICK: Cmd[] = [
   { label: '🛏 Cozy night', cmd: ['time set night', 'weather clear', 'difficulty peaceful'] }
 ]
 
+const DIFFICULTIES: { id: string; label: string }[] = [
+  { id: 'peaceful', label: '☮ Peaceful' },
+  { id: 'easy', label: '🙂 Easy' },
+  { id: 'normal', label: '⚔ Normal' },
+  { id: 'hard', label: '💀 Hard' }
+]
+
 const GAMERULES = [
   'keepInventory',
   'mobGriefing',
@@ -141,6 +148,7 @@ export default function App(): JSX.Element {
   const [perfOn, setPerfOn] = useState(false)
   const [perf, setPerf] = useState<{ mspt: number; tps: number } | null>(null)
   const [ruleState, setRuleState] = useState<Record<string, boolean>>({})
+  const [difficulty, setDifficulty] = useState('')
 
   const consoleRef = useRef<HTMLDivElement>(null)
 
@@ -160,9 +168,24 @@ export default function App(): JSX.Element {
     }
   }, [])
 
+  const loadProps = useCallback(async () => {
+    try {
+      const p = await window.api.getProps()
+      setDifficulty((p.difficulty ?? '').trim())
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const changeDifficulty = (id: string): void => {
+    setDifficulty(id)
+    void window.api.setDifficulty(id)
+  }
+
   useEffect(() => {
     void refresh()
     void loadRoster()
+    void loadProps()
     const offLog = window.api.onLog((line) => setLines((p) => [...p.slice(-1500), line]))
     const offState = window.api.onState((s) => {
       setState(s as State)
@@ -205,7 +228,7 @@ export default function App(): JSX.Element {
       offLock()
       offEvent()
     }
-  }, [refresh, loadRoster])
+  }, [refresh, loadRoster, loadProps])
 
   // Uptime ticker (only meaningful while running).
   useEffect(() => {
@@ -322,6 +345,22 @@ export default function App(): JSX.Element {
             {state === 'starting' ? 'Starting…' : 'Saving &amp; uploading…'}
           </button>
         )}
+      </div>
+
+      <div className="diffbar">
+        <span className="dlabel">Difficulty</span>
+        <div className="seg">
+          {DIFFICULTIES.map((d) => (
+            <button
+              key={d.id}
+              className={difficulty === d.id ? 'on' : ''}
+              onClick={() => changeDifficulty(d.id)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <span className="muted hint2">{running ? 'applied live' : 'saved for next start'}</span>
       </div>
 
       <div className="console-toolbar">

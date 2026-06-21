@@ -56,6 +56,8 @@ export interface DashboardApi {
   setPerf(on: boolean): Promise<void>
   getRoster(): Promise<PlayerStat[]>
   getCapabilities(): Promise<Capabilities | null>
+  getProps(): Promise<Record<string, string>>
+  setDifficulty(value: string): Promise<void>
   forceUnlock(): Promise<void>
   chooseRepo(): Promise<ChooseRepoResult>
   writeClipboard(text: string): void
