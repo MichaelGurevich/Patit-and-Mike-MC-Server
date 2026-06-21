@@ -142,7 +142,7 @@ function StateBadge({ state }: { state: State }): JSX.Element {
   return <span className={`badge ${state}`}>{STATE_LABEL[state]}</span>
 }
 
-function LockBanner({
+function SessionStatus({
   lock,
   state,
   onForce
@@ -150,25 +150,44 @@ function LockBanner({
   lock: LockInfo | null
   state: State
   onForce: () => void
-}): JSX.Element | null {
+}): JSX.Element {
   if (state === 'running' || state === 'starting') {
-    return <div className="banner ok">You hold the session — happy building! 🛠️</div>
-  }
-  if (lock && lock.status === 'active') {
     return (
-      <div className="banner warn">
-        <span>
-          🔒 <strong>{lock.holder}</strong> (on {lock.machine}) has been hosting since {lock.since}.
-          Only one person can host at a time.
-        </span>
-        <button onClick={onForce}>Force-unlock</button>
+      <div className="status-strip ok">
+        <span>🛠️</span>
+        <span className="grow">You&apos;re hosting — happy building!</span>
       </div>
     )
   }
-  return <div className="banner free">✅ Lock is free — ready when you are.</div>
+  if (lock && lock.status === 'active') {
+    return (
+      <div className="status-strip warn">
+        <span>🔒</span>
+        <span className="grow">
+          <strong>{lock.holder}</strong> is hosting (on {lock.machine}) since {lock.since}.
+        </span>
+        <button className="mini" onClick={onForce}>
+          Force-unlock
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="status-strip free">
+      <span>✅</span>
+      <span className="grow">Ready when you are — nobody is hosting.</span>
+    </div>
+  )
 }
 
+type Theme = 'light' | 'dark'
+type Tab = 'console' | 'players' | 'rules'
+
 export default function App(): JSX.Element {
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem('mc-theme') as Theme) || 'light'
+  )
+  const [tab, setTab] = useState<Tab>('console')
   const [repoRoot, setRepoRoot] = useState<string | null>(null)
   const [state, setState] = useState<State>('idle')
   const [lock, setLock] = useState<LockInfo | null>(null)
@@ -195,6 +214,13 @@ export default function App(): JSX.Element {
   const [copied, setCopied] = useState('')
 
   const consoleRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('mc-theme', theme)
+  }, [theme])
+
+  const toggleTheme = (): void => setTheme((t) => (t === 'light' ? 'dark' : 'light'))
 
   const refresh = useCallback(async () => {
     const s = await window.api.getStatus()
@@ -377,237 +403,336 @@ export default function App(): JSX.Element {
 
   return (
     <div className="app">
-      <header>
-        <div className="brand">🎮 MC Server Dashboard</div>
-        <div className="head-right">
+      {/* ---------- Top bar ---------- */}
+      <div className="topbar">
+        <div className="brand">🎮 MC Dashboard</div>
+        <div className="topbar-status">
+          <StateBadge state={state} />
           {uptime && <span className="chip">⏱ {uptime}</span>}
           {perfOn && perf && (
             <span className={`chip ${perf.tps >= 19.5 ? 'good' : perf.mspt > 50 ? 'bad' : 'warnchip'}`}>
               {perf.mspt.toFixed(1)} ms · {perf.tps} TPS
             </span>
           )}
-          <button className={`mini ${perfOn ? 'on' : ''}`} title="Toggle performance polling" onClick={togglePerf}>
-            📊
-          </button>
-          <StateBadge state={state} />
         </div>
-      </header>
-
-      <LockBanner lock={lock} state={state} onForce={forceUnlock} />
-
-      <details className="panel" open>
-        <summary>🔌 Connect — server address</summary>
-        <div className="panel-body">
-          <div className="connect">
-            <div className="connect-row">
-              <span className="crow-label">📶 Same Wi-Fi</span>
-              <code className="crow-val">{connect.lan ? addr(connect.lan) : 'not detected'}</code>
-              <button className="mini" disabled={!connect.lan} onClick={() => copy('lan', addr(connect.lan as string))}>
-                {copied === 'lan' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div className="connect-row">
-              <span className="crow-label">🌍 Internet (Tailscale)</span>
-              <code className="crow-val">{connect.tailscale ? addr(connect.tailscale) : 'Tailscale off'}</code>
-              <button
-                className="mini"
-                disabled={!connect.tailscale}
-                onClick={() => copy('ts', addr(connect.tailscale as string))}
-              >
-                {copied === 'ts' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div className="connect-row">
-              <span className="crow-label">💻 This PC</span>
-              <code className="crow-val">localhost</code>
-              <button className="mini" onClick={() => copy('local', 'localhost')}>
-                {copied === 'local' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-          </div>
-          <button className="mini refresh-net" onClick={() => void loadConnect()}>
-            Refresh
-          </button>
-        </div>
-      </details>
-
-      <div className="controls">
-        {!running && !busy && (
+        <div className="topbar-actions">
           <button
-            className="primary big"
-            onClick={() => {
-              setLines([])
-              void window.api.start()
-            }}
+            className={`mini ${perfOn ? 'on' : ''}`}
+            title="Toggle performance polling"
+            onClick={togglePerf}
           >
-            ▶ Start &amp; Play
+            📊 Perf
           </button>
-        )}
-        {running && (
-          <button className="danger big" onClick={() => void window.api.stop()}>
-            ■ Stop &amp; Save
+          <button className="mini" title="Toggle light / dark theme" onClick={toggleTheme}>
+            {theme === 'light' ? '🌙 Dark' : '☀ Light'}
           </button>
-        )}
-        {busy && (
-          <button className="big" disabled>
-            {state === 'starting' ? 'Starting…' : 'Saving &amp; uploading…'}
-          </button>
-        )}
-      </div>
-
-      <div className="diffbar">
-        <span className="dlabel">Difficulty</span>
-        <div className="seg">
-          {DIFFICULTIES.map((d) => (
-            <button
-              key={d.id}
-              className={difficulty === d.id ? 'on' : ''}
-              onClick={() => changeDifficulty(d.id)}
-            >
-              {d.label}
-            </button>
-          ))}
         </div>
-        <span className="muted hint2">{running ? 'applied live' : 'saved for next start'}</span>
       </div>
 
-      <div className="console-toolbar">
-        <input
-          className="search"
-          placeholder="🔍 Filter console…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-        <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value as 'all' | Level)}>
-          <option value="all">All</option>
-          <option value="info">Info</option>
-          <option value="warn">Warnings</option>
-          <option value="error">Errors</option>
-        </select>
-        <label className="check">
-          <input type="checkbox" checked={autoscroll} onChange={(e) => setAutoscroll(e.target.checked)} /> Auto-scroll
-        </label>
-        <button className="mini" onClick={copyConsole} title="Copy visible lines">
-          Copy
-        </button>
-        <button className="mini" onClick={() => setLines([])} title="Clear console">
-          Clear
-        </button>
-      </div>
+      {/* ---------- Two-pane body ---------- */}
+      <div className="layout">
+        {/* ----- Sidebar: controls, connect, who's online ----- */}
+        <aside className="sidebar">
+          <section className="card control">
+            <div className="card-title">Server control</div>
+            <div className="card-body">
+              <SessionStatus lock={lock} state={state} onForce={forceUnlock} />
 
-      <div className="console" ref={consoleRef}>
-        {visibleLines.length === 0 && <div className="muted">Console output will appear here…</div>}
-        {visibleLines.map((l, i) => (
-          <div key={i} className={`line ${levelOf(l)}`}>
-            {l}
-          </div>
-        ))}
-      </div>
-
-      <form className="cmdbar" onSubmit={onSubmit}>
-        <input
-          placeholder={running ? 'Type a server command…' : 'Start the server to send commands'}
-          value={cmd}
-          disabled={!running}
-          onChange={(e) => setCmd(e.target.value)}
-        />
-        <button className="primary" disabled={!running} type="submit">
-          Send
-        </button>
-      </form>
-
-      <div className="quick">
-        {QUICK.map((q) => (
-          <button key={q.label} disabled={!running} onClick={() => sendCmd(q.cmd)}>
-            {q.label}
-          </button>
-        ))}
-      </div>
-
-      <details className="panel" open>
-        <summary>
-          👥 Players{' '}
-          <span className="count">
-            {online.length} online · {roster.length} known
-          </span>
-        </summary>
-        <div className="panel-body">
-          <button className="mini" onClick={() => void loadRoster()}>
-            Refresh
-          </button>
-          <table className="roster">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Playtime</th>
-                <th>Deaths</th>
-                <th>Mined</th>
-                <th>Adv.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {roster.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="muted">
-                    No players yet.
-                  </td>
-                </tr>
+              {!running && !busy && (
+                <button
+                  className="primary big"
+                  onClick={() => {
+                    setLines([])
+                    setTab('console')
+                    void window.api.start()
+                  }}
+                >
+                  ▶ Start &amp; Play
+                </button>
               )}
-              {roster.map((p) => (
-                <tr key={p.uuid}>
-                  <td>
-                    <span className={`dot ${online.includes(p.name) ? 'on' : ''}`} /> {p.name}
-                  </td>
-                  <td>{fmtPlaytime(p.playTimeTicks)}</td>
-                  <td>{p.deaths}</td>
-                  <td>{p.blocksMined.toLocaleString()}</td>
-                  <td>{p.advancements}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
+              {running && (
+                <button className="danger big" onClick={() => void window.api.stop()}>
+                  ■ Stop &amp; Save
+                </button>
+              )}
+              {busy && (
+                <button className="big" disabled>
+                  {state === 'starting' ? 'Starting…' : 'Saving & uploading…'}
+                </button>
+              )}
 
-      <details className="panel">
-        <summary>⚙ Game rules</summary>
-        <div className="panel-body">
-          <div className="rules-actions">
-            <button className="primary" disabled={!running} onClick={resetVanilla} title="Set all game rules back to vanilla defaults (difficulty unchanged)">
-              ↺ Reset to Vanilla
-            </button>
-            <span className="muted">Restores all standard game rules to their defaults. Difficulty is not changed.</span>
-          </div>
-          <div className="rules">
-            {GAMERULES.map((r) => (
-              <div className="rule" key={r}>
-                <span className="rule-name">{r}</span>
-                <div className="seg">
-                  <button
-                    className={ruleState[r] === true ? 'on' : ''}
-                    disabled={!running}
-                    onClick={() => setRule(r, true)}
-                  >
-                    On
-                  </button>
-                  <button
-                    className={ruleState[r] === false ? 'on' : ''}
-                    disabled={!running}
-                    onClick={() => setRule(r, false)}
-                  >
-                    Off
-                  </button>
+              <div>
+                <div className="field-label">Difficulty</div>
+                <div className="diff-grid">
+                  {DIFFICULTIES.map((d) => (
+                    <button
+                      key={d.id}
+                      className={difficulty === d.id ? 'on' : ''}
+                      onClick={() => changeDifficulty(d.id)}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="muted hint2">
+                  {running ? 'Applied live' : 'Saved for next start'}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-title">
+              <span>🔌 Connect</span>
+              <button className="mini" onClick={() => void loadConnect()}>
+                Refresh
+              </button>
+            </div>
+            <div className="card-body">
+              <div className="connect">
+                <div className="connect-row">
+                  <span className="crow-label">📶 Same Wi-Fi</span>
+                  <div className="crow-inputs">
+                    <code className="crow-val">{connect.lan ? addr(connect.lan) : 'not detected'}</code>
+                    <button
+                      className="mini"
+                      disabled={!connect.lan}
+                      onClick={() => copy('lan', addr(connect.lan as string))}
+                    >
+                      {copied === 'lan' ? '✓' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+                <div className="connect-row">
+                  <span className="crow-label">🌍 Internet (Tailscale)</span>
+                  <div className="crow-inputs">
+                    <code className="crow-val">
+                      {connect.tailscale ? addr(connect.tailscale) : 'Tailscale off'}
+                    </code>
+                    <button
+                      className="mini"
+                      disabled={!connect.tailscale}
+                      onClick={() => copy('ts', addr(connect.tailscale as string))}
+                    >
+                      {copied === 'ts' ? '✓' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+                <div className="connect-row">
+                  <span className="crow-label">💻 This PC</span>
+                  <div className="crow-inputs">
+                    <code className="crow-val">localhost</code>
+                    <button className="mini" onClick={() => copy('local', 'localhost')}>
+                      {copied === 'local' ? '✓' : 'Copy'}
+                    </button>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-          <p className="muted hint">Changes apply live while the server is running.</p>
-        </div>
-      </details>
+            </div>
+          </section>
 
-      <footer>
-        <span className="muted">{repoRoot}</span>
-      </footer>
+          <section className="card">
+            <div className="card-title">
+              <span>👥 Online now</span>
+              <span className="count">{online.length}</span>
+            </div>
+            <div className="card-body">
+              {online.length === 0 ? (
+                <span className="muted">Nobody online.</span>
+              ) : (
+                <div className="online-list">
+                  {online.map((name) => (
+                    <div className="online-item" key={name}>
+                      <span className="dot on" /> {name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </aside>
+
+        {/* ----- Main: tabbed work area ----- */}
+        <main className="main">
+          <div className="tabs">
+            <button
+              className={`tab ${tab === 'console' ? 'active' : ''}`}
+              onClick={() => setTab('console')}
+            >
+              🖥 Console
+            </button>
+            <button
+              className={`tab ${tab === 'players' ? 'active' : ''}`}
+              onClick={() => setTab('players')}
+            >
+              👥 Players <span className="pill">{roster.length}</span>
+            </button>
+            <button
+              className={`tab ${tab === 'rules' ? 'active' : ''}`}
+              onClick={() => setTab('rules')}
+            >
+              ⚙ Game rules
+            </button>
+          </div>
+
+          {tab === 'console' && (
+            <div className="tabpanel console-panel">
+              <div className="console-toolbar">
+                <input
+                  className="search"
+                  placeholder="🔍 Filter console…"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                />
+                <select
+                  value={levelFilter}
+                  onChange={(e) => setLevelFilter(e.target.value as 'all' | Level)}
+                >
+                  <option value="all">All</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warnings</option>
+                  <option value="error">Errors</option>
+                </select>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={autoscroll}
+                    onChange={(e) => setAutoscroll(e.target.checked)}
+                  />{' '}
+                  Auto-scroll
+                </label>
+                <button className="mini" onClick={copyConsole} title="Copy visible lines">
+                  Copy
+                </button>
+                <button className="mini" onClick={() => setLines([])} title="Clear console">
+                  Clear
+                </button>
+              </div>
+
+              <div className="console" ref={consoleRef}>
+                {visibleLines.length === 0 && (
+                  <div className="muted">Console output will appear here…</div>
+                )}
+                {visibleLines.map((l, i) => (
+                  <div key={i} className={`line ${levelOf(l)}`}>
+                    {l}
+                  </div>
+                ))}
+              </div>
+
+              <form className="cmdbar" onSubmit={onSubmit}>
+                <input
+                  placeholder={running ? 'Type a server command…' : 'Start the server to send commands'}
+                  value={cmd}
+                  disabled={!running}
+                  onChange={(e) => setCmd(e.target.value)}
+                />
+                <button className="primary" disabled={!running} type="submit">
+                  Send
+                </button>
+              </form>
+
+              <div className="quick">
+                {QUICK.map((q) => (
+                  <button key={q.label} disabled={!running} onClick={() => sendCmd(q.cmd)}>
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tab === 'players' && (
+            <div className="tabpanel">
+              <div className="rules-actions">
+                <button className="mini" onClick={() => void loadRoster()}>
+                  ↻ Refresh
+                </button>
+                <span className="muted">
+                  {online.length} online · {roster.length} known
+                </span>
+              </div>
+              <table className="roster">
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Playtime</th>
+                    <th>Deaths</th>
+                    <th>Mined</th>
+                    <th>Adv.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roster.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        No players yet.
+                      </td>
+                    </tr>
+                  )}
+                  {roster.map((p) => (
+                    <tr key={p.uuid}>
+                      <td>
+                        <span className={`dot ${online.includes(p.name) ? 'on' : ''}`} /> {p.name}
+                      </td>
+                      <td>{fmtPlaytime(p.playTimeTicks)}</td>
+                      <td>{p.deaths}</td>
+                      <td>{p.blocksMined.toLocaleString()}</td>
+                      <td>{p.advancements}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tab === 'rules' && (
+            <div className="tabpanel">
+              <div className="rules-actions">
+                <button
+                  className="primary"
+                  disabled={!running}
+                  onClick={resetVanilla}
+                  title="Set all game rules back to vanilla defaults (difficulty unchanged)"
+                >
+                  ↺ Reset to Vanilla
+                </button>
+                <span className="muted">
+                  Restores all standard game rules to their defaults. Difficulty is not changed.
+                </span>
+              </div>
+              <div className="rules">
+                {GAMERULES.map((r) => (
+                  <div className="rule" key={r}>
+                    <span className="rule-name">{r}</span>
+                    <div className="seg">
+                      <button
+                        className={ruleState[r] === true ? 'on' : ''}
+                        disabled={!running}
+                        onClick={() => setRule(r, true)}
+                      >
+                        On
+                      </button>
+                      <button
+                        className={ruleState[r] === false ? 'on' : ''}
+                        disabled={!running}
+                        onClick={() => setRule(r, false)}
+                      >
+                        Off
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!running && (
+                  <p className="muted hint">Start the server to change game rules live.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      <footer>{repoRoot}</footer>
     </div>
   )
 }
