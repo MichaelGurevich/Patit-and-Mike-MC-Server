@@ -66,6 +66,44 @@ const GAMERULES = [
   'doImmediateRespawn'
 ]
 
+// Vanilla Java Edition defaults for the standard game rules (difficulty excluded
+// on purpose — it isn't a game rule). Used by the "Reset to Vanilla" button.
+const VANILLA_DEFAULTS: Record<string, string> = {
+  announceAdvancements: 'true',
+  commandBlockOutput: 'true',
+  disableRaids: 'false',
+  doDaylightCycle: 'true',
+  doEntityDrops: 'true',
+  doFireTick: 'true',
+  doImmediateRespawn: 'false',
+  doInsomnia: 'true',
+  doLimitedCrafting: 'false',
+  doMobLoot: 'true',
+  doMobSpawning: 'true',
+  doPatrolSpawning: 'true',
+  doTileDrops: 'true',
+  doTraderSpawning: 'true',
+  doWeatherCycle: 'true',
+  drowningDamage: 'true',
+  fallDamage: 'true',
+  fireDamage: 'true',
+  forgiveDeadPlayers: 'true',
+  freezeDamage: 'true',
+  keepInventory: 'false',
+  logAdminCommands: 'true',
+  mobGriefing: 'true',
+  naturalRegeneration: 'true',
+  reducedDebugInfo: 'false',
+  sendCommandFeedback: 'true',
+  showDeathMessages: 'true',
+  spectatorsGenerateChunks: 'true',
+  universalAnger: 'false',
+  maxCommandChainLength: '65536',
+  maxEntityCramming: '24',
+  randomTickSpeed: '3',
+  spawnRadius: '10'
+}
+
 const STATE_LABEL: Record<State, string> = {
   idle: 'Idle',
   starting: 'Starting…',
@@ -275,6 +313,16 @@ export default function App(): JSX.Element {
     setRuleState((p) => ({ ...p, [rule]: val }))
   }
 
+  const resetVanilla = (): void => {
+    if (!window.confirm('Reset all game rules to vanilla defaults?\n\nDifficulty is NOT changed.')) return
+    const next: Record<string, boolean> = {}
+    for (const [rule, def] of Object.entries(VANILLA_DEFAULTS)) {
+      sendCmd(`gamerule ${rule} ${def}`)
+      if (def === 'true' || def === 'false') next[rule] = def === 'true'
+    }
+    setRuleState((p) => ({ ...p, ...next }))
+  }
+
   const forceUnlock = (): void => {
     if (window.confirm('Force-unlock the session?\n\nOnly do this if you are SURE nobody is currently playing (e.g. the other person crashed). Hosting at the same time can corrupt the shared world.')) {
       void window.api.forceUnlock()
@@ -463,28 +511,36 @@ export default function App(): JSX.Element {
 
       <details className="panel">
         <summary>⚙ Game rules</summary>
-        <div className="panel-body rules">
-          {GAMERULES.map((r) => (
-            <div className="rule" key={r}>
-              <span className="rule-name">{r}</span>
-              <div className="seg">
-                <button
-                  className={ruleState[r] === true ? 'on' : ''}
-                  disabled={!running}
-                  onClick={() => setRule(r, true)}
-                >
-                  On
-                </button>
-                <button
-                  className={ruleState[r] === false ? 'on' : ''}
-                  disabled={!running}
-                  onClick={() => setRule(r, false)}
-                >
-                  Off
-                </button>
+        <div className="panel-body">
+          <div className="rules-actions">
+            <button className="primary" disabled={!running} onClick={resetVanilla} title="Set all game rules back to vanilla defaults (difficulty unchanged)">
+              ↺ Reset to Vanilla
+            </button>
+            <span className="muted">Restores all standard game rules to their defaults. Difficulty is not changed.</span>
+          </div>
+          <div className="rules">
+            {GAMERULES.map((r) => (
+              <div className="rule" key={r}>
+                <span className="rule-name">{r}</span>
+                <div className="seg">
+                  <button
+                    className={ruleState[r] === true ? 'on' : ''}
+                    disabled={!running}
+                    onClick={() => setRule(r, true)}
+                  >
+                    On
+                  </button>
+                  <button
+                    className={ruleState[r] === false ? 'on' : ''}
+                    disabled={!running}
+                    onClick={() => setRule(r, false)}
+                  >
+                    Off
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
           <p className="muted hint">Changes apply live while the server is running.</p>
         </div>
       </details>

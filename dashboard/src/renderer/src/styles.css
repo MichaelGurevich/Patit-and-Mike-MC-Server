@@ -352,6 +352,15 @@ table.roster {
   box-shadow: 0 0 6px var(--green-h);
 }
 
+.rules-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+.rules-actions .muted {
+  font-size: 12px;
+}
 .rules {
   display: grid;
   grid-template-columns: 1fr 1fr;
