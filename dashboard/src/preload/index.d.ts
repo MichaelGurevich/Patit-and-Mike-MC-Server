@@ -30,6 +30,12 @@ export interface PlayerStat {
   advancements: number
 }
 
+export interface ConnectInfo {
+  lan: string | null
+  tailscale: string | null
+  port: string
+}
+
 export interface Capabilities {
   javaOk: boolean
   javaVersion: number | null
@@ -58,6 +64,7 @@ export interface DashboardApi {
   getCapabilities(): Promise<Capabilities | null>
   getProps(): Promise<Record<string, string>>
   setDifficulty(value: string): Promise<void>
+  getConnectInfo(): Promise<ConnectInfo>
   forceUnlock(): Promise<void>
   chooseRepo(): Promise<ChooseRepoResult>
   writeClipboard(text: string): void

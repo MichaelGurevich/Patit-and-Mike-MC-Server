@@ -185,6 +185,37 @@ button.big {
   border-radius: 10px;
 }
 
+.connect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.connect-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.crow-label {
+  width: 180px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.crow-val {
+  flex: 1;
+  font-family: 'Cascadia Code', 'SF Mono', Consolas, monospace;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 9px;
+  user-select: text;
+}
+.refresh-net {
+  margin-top: 10px;
+}
+
 .diffbar {
   display: flex;
   align-items: center;

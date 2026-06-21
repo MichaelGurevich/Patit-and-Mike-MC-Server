@@ -187,6 +187,12 @@ export default function App(): JSX.Element {
   const [perf, setPerf] = useState<{ mspt: number; tps: number } | null>(null)
   const [ruleState, setRuleState] = useState<Record<string, boolean>>({})
   const [difficulty, setDifficulty] = useState('')
+  const [connect, setConnect] = useState<{ lan: string | null; tailscale: string | null; port: string }>({
+    lan: null,
+    tailscale: null,
+    port: '25565'
+  })
+  const [copied, setCopied] = useState('')
 
   const consoleRef = useRef<HTMLDivElement>(null)
 
@@ -220,10 +226,27 @@ export default function App(): JSX.Element {
     void window.api.setDifficulty(id)
   }
 
+  const loadConnect = useCallback(async () => {
+    try {
+      setConnect(await window.api.getConnectInfo())
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const addr = (ip: string): string => (connect.port === '25565' ? ip : `${ip}:${connect.port}`)
+
+  const copy = (key: string, text: string): void => {
+    window.api.writeClipboard(text)
+    setCopied(key)
+    setTimeout(() => setCopied(''), 1200)
+  }
+
   useEffect(() => {
     void refresh()
     void loadRoster()
     void loadProps()
+    void loadConnect()
     const offLog = window.api.onLog((line) => setLines((p) => [...p.slice(-1500), line]))
     const offState = window.api.onState((s) => {
       setState(s as State)
@@ -240,6 +263,7 @@ export default function App(): JSX.Element {
         case 'ready':
           setReadyAt(Date.now())
           setOnline([])
+          void loadConnect()
           break
         case 'joined':
           setOnline((p) => (p.includes(ev.name) ? p : [...p, ev.name]))
@@ -266,7 +290,7 @@ export default function App(): JSX.Element {
       offLock()
       offEvent()
     }
-  }, [refresh, loadRoster, loadProps])
+  }, [refresh, loadRoster, loadProps, loadConnect])
 
   // Uptime ticker (only meaningful while running).
   useEffect(() => {
@@ -370,6 +394,42 @@ export default function App(): JSX.Element {
       </header>
 
       <LockBanner lock={lock} state={state} onForce={forceUnlock} />
+
+      <details className="panel" open>
+        <summary>🔌 Connect — server address</summary>
+        <div className="panel-body">
+          <div className="connect">
+            <div className="connect-row">
+              <span className="crow-label">📶 Same Wi-Fi</span>
+              <code className="crow-val">{connect.lan ? addr(connect.lan) : 'not detected'}</code>
+              <button className="mini" disabled={!connect.lan} onClick={() => copy('lan', addr(connect.lan as string))}>
+                {copied === 'lan' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <div className="connect-row">
+              <span className="crow-label">🌍 Internet (Tailscale)</span>
+              <code className="crow-val">{connect.tailscale ? addr(connect.tailscale) : 'Tailscale off'}</code>
+              <button
+                className="mini"
+                disabled={!connect.tailscale}
+                onClick={() => copy('ts', addr(connect.tailscale as string))}
+              >
+                {copied === 'ts' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <div className="connect-row">
+              <span className="crow-label">💻 This PC</span>
+              <code className="crow-val">localhost</code>
+              <button className="mini" onClick={() => copy('local', 'localhost')}>
+                {copied === 'local' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+          <button className="mini refresh-net" onClick={() => void loadConnect()}>
+            Refresh
+          </button>
+        </div>
+      </details>
 
       <div className="controls">
         {!running && !busy && (

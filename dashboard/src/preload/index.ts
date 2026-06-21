@@ -10,6 +10,7 @@ const api = {
   getCapabilities: () => ipcRenderer.invoke('getCapabilities'),
   getProps: () => ipcRenderer.invoke('getProps'),
   setDifficulty: (value: string) => ipcRenderer.invoke('setDifficulty', value),
+  getConnectInfo: () => ipcRenderer.invoke('getConnectInfo'),
   forceUnlock: () => ipcRenderer.invoke('forceUnlock'),
   chooseRepo: () => ipcRenderer.invoke('chooseRepo'),
   writeClipboard: (text: string) => clipboard.writeText(text),

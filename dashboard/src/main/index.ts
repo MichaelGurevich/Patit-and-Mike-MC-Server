@@ -6,6 +6,7 @@ import { forceUnlock, readLock } from './git'
 import { readRoster } from './players'
 import { getCapabilities } from './capabilities'
 import { readProperties, setProperty } from './properties'
+import { getConnectInfo } from './net'
 
 let win: BrowserWindow | null = null
 let controller: ServerController | null = null
@@ -78,6 +79,11 @@ app.whenReady().then(() => {
   ipcMain.handle('getRoster', () => (repoRoot ? readRoster(repoPaths(repoRoot)) : []))
   ipcMain.handle('getCapabilities', () => (repoRoot ? getCapabilities(repoRoot, DEFAULT_CONFIG) : null))
   ipcMain.handle('getProps', () => (repoRoot ? readProperties(repoPaths(repoRoot)) : {}))
+  ipcMain.handle('getConnectInfo', () => {
+    const info = getConnectInfo()
+    const port = repoRoot ? readProperties(repoPaths(repoRoot))['server-port'] || '25565' : '25565'
+    return { ...info, port }
+  })
   ipcMain.handle('setDifficulty', (_e, value: string) => {
     if (!repoRoot) return
     // Persist for next start (and Git sync) AND apply live if the server is up.
