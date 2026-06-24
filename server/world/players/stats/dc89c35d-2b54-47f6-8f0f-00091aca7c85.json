@@ -1,28 +1,66 @@
 {
   "stats": {
-    "minecraft:used": {
-      "minecraft:wildflowers": 3,
-      "minecraft:birch_log": 2
-    },
-    "minecraft:custom": {
-      "minecraft:sprint_one_cm": 242,
-      "minecraft:time_since_rest": 9774,
-      "minecraft:fall_one_cm": 725,
-      "minecraft:walk_one_cm": 23089,
-      "minecraft:total_world_time": 9774,
-      "minecraft:leave_game": 4,
-      "minecraft:fly_one_cm": 992,
-      "minecraft:damage_taken": 20,
-      "minecraft:play_time": 9774,
-      "minecraft:jump": 9,
-      "minecraft:time_since_death": 9774
-    },
-    "minecraft:picked_up": {
-      "minecraft:birch_log": 2,
-      "minecraft:wildflowers": 3
-    },
     "minecraft:mined": {
       "minecraft:wildflowers": 1,
+      "minecraft:dirt": 18,
+      "minecraft:crafting_table": 1,
+      "minecraft:birch_log": 18,
+      "minecraft:birch_leaves": 1,
+      "minecraft:grass_block": 7,
+      "minecraft:stone": 1
+    },
+    "minecraft:picked_up": {
+      "minecraft:dirt": 25,
+      "minecraft:wooden_pickaxe": 2,
+      "minecraft:stick": 2,
+      "minecraft:cobblestone": 5,
+      "minecraft:white_wool": 1,
+      "minecraft:wildflowers": 6,
+      "minecraft:crafting_table": 1,
+      "minecraft:birch_boat": 1,
+      "minecraft:stone_pickaxe": 2,
+      "minecraft:stone_axe": 1,
+      "minecraft:birch_planks": 13,
+      "minecraft:birch_log": 18,
+      "minecraft:mutton": 2
+    },
+    "minecraft:killed": {
+      "minecraft:sheep": 1
+    },
+    "minecraft:dropped": {
+      "minecraft:stone_pickaxe": 1,
+      "minecraft:wooden_pickaxe": 1
+    },
+    "minecraft:custom": {
+      "minecraft:interact_with_crafting_table": 5,
+      "minecraft:time_since_rest": 26827,
+      "minecraft:walk_one_cm": 70416,
+      "minecraft:leave_game": 5,
+      "minecraft:walk_under_water_one_cm": 118,
+      "minecraft:mob_kills": 1,
+      "minecraft:damage_taken": 20,
+      "minecraft:boat_one_cm": 0,
+      "minecraft:play_time": 26827,
+      "minecraft:damage_dealt": 80,
+      "minecraft:jump": 38,
+      "minecraft:time_since_death": 26827,
+      "minecraft:drop": 2,
+      "minecraft:sprint_one_cm": 367,
+      "minecraft:fall_one_cm": 1025,
+      "minecraft:total_world_time": 26827,
+      "minecraft:fly_one_cm": 992,
+      "minecraft:walk_on_water_one_cm": 1759,
+      "minecraft:crouch_one_cm": 870,
+      "minecraft:sneak_time": 548
+    },
+    "minecraft:crafted": {
+      "minecraft:birch_boat": 1
+    },
+    "minecraft:used": {
+      "minecraft:stone_axe": 10,
+      "minecraft:wildflowers": 3,
+      "minecraft:birch_boat": 1,
+      "minecraft:wooden_pickaxe": 1,
       "minecraft:birch_log": 2
     }
   },
