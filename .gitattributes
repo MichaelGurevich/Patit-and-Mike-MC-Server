@@ -7,8 +7,10 @@
 *.bat       text eol=crlf
 
 # The lock + version files are read by both Windows and Mac — force LF, no fuss.
-SESSION-LOCK.txt   text eol=lf
-server/version.txt text eol=lf
+SESSION-LOCK.txt     text eol=lf
+server/version.txt   text eol=lf
+# Remembered game-rule selections (written by the dashboard, read on both OSes).
+server/gamerules.json text eol=lf
 
 # Treat Minecraft world data as raw binary: never line-ending convert or merge.
 *.mca     binary

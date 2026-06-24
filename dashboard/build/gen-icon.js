@@ -1,4 +1,6 @@
-// Generates a Minecraft-style pixel-art icon (polar bear + snowflake) as SVG.
+// Generates a Minecraft-style pixel-art icon as SVG.
+// Composition: polar bear (left half) + snowflake (right half), balanced so
+// the two motifs occupy roughly equal space.
 // Everything is axis-aligned rects on an 8px grid -> crisp blocky look.
 const fs = require('fs')
 const path = require('path')
@@ -21,62 +23,75 @@ const C = {
 const rects = []
 const px = (x, y, w, h, fill) =>
   rects.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}"/>`)
-// block helper using grid units
-const blk = (cx, cy, cw, ch, fill) => px(cx * U, cy * U, cw * U, ch * U, fill)
+const blk = (cx, cy, cw, ch, fill) => px(cx * U, cy * U, cw * U, ch * U, fill) // grid units
 
-// ---- background (icy gradient + dark frame) ----
+// ---- background (icy gradient) ----
 rects.push(`<rect x="0" y="0" width="${SIZE}" height="${SIZE}" fill="url(#ice)"/>`)
 
-// ---- snowflake (top-centre), 9x9 unit bitmap ----
-const flake = [
-  '....s....',
-  's..sss..s',
-  '.s.sss.s.',
-  '..sssss..',
-  'sssssssss',
-  '..sssss..',
-  '.s.sss.s.',
-  's..sss..s',
-  '....s....'
-]
-const fx = 11 // start unit col  (9 wide, centred: (32-9)/2 ~ 11)
-const fy = 1 // start unit row
-for (let r = 0; r < flake.length; r++) {
-  for (let c = 0; c < flake[r].length; c++) {
-    if (flake[r][c] === 's') blk(fx + c, fy + r, 1, 1, C.snow)
+// ============================================================
+// BEAR — left half, centred ~ col 8, vertically centred
+// ============================================================
+// ears
+const ear = (col) => {
+  blk(col, 8, 4, 4, C.border)
+  blk(col + 1, 9, 2, 2, C.white)
+}
+ear(2)
+ear(10)
+// head
+blk(2, 11, 12, 11, C.border) // outline
+blk(3, 12, 10, 9, C.white) // face
+blk(3, 19, 10, 2, C.shadow) // cheek shading
+// eyes (+ glints)
+blk(4, 14, 2, 2, C.black)
+blk(10, 14, 2, 2, C.black)
+blk(4, 14, 1, 1, C.white)
+blk(10, 14, 1, 1, C.white)
+// muzzle + nose + mouth
+blk(5, 17, 6, 4, C.snout)
+blk(7, 17, 2, 2, C.black)
+blk(7, 19, 2, 1, C.black)
+blk(6, 20, 1, 1, C.black)
+blk(9, 20, 1, 1, C.black)
+
+// ============================================================
+// SNOWFLAKE — right half, detailed 15x15 dendrite, centred ~ col 23
+// Built with 8-fold symmetry: specify cells once, reflect/rotate to all
+// 8 directions so arms + twigs stay perfectly symmetric.
+// ============================================================
+const fCenterCol = 23 // canvas-unit centre
+const fCenterRow = 15
+const cells = new Set()
+const sym = (dx, dy) => {
+  for (const [a, b] of [
+    [dx, dy],
+    [-dx, dy],
+    [dx, -dy],
+    [-dx, -dy],
+    [dy, dx],
+    [-dy, dx],
+    [dy, -dx],
+    [-dy, -dx]
+  ]) {
+    cells.add(`${fCenterCol + a},${fCenterRow + b}`)
   }
 }
 
-// ---- ears (top corners) ----
-const ear = (col) => {
-  blk(col, 10, 6, 5, C.border) // outline block
-  blk(col + 1, 11, 4, 3, C.white)
-  blk(col + 2, 12, 2, 2, C.inner)
+// centre pixel
+sym(0, 0)
+// four long axial arms (shaft length 7) with twigs + arrowhead barbs
+for (let d = 1; d <= 7; d++) sym(0, d)
+sym(1, 3) // mid twig nub (both sides via symmetry)
+sym(1, 6) // barb near the tip
+sym(2, 5) // ...forming a small arrowhead
+// four shorter diagonal arms (shaft length 4) — distinct length keeps gaps
+for (let d = 1; d <= 4; d++) sym(d, d)
+sym(3, 2) // tiny twig on each diagonal arm
+
+for (const key of cells) {
+  const [cx, cy] = key.split(',').map(Number)
+  blk(cx, cy, 1, 1, C.snow)
 }
-ear(5)
-ear(21)
-
-// ---- head ----
-blk(3, 14, 26, 16, C.border) // outline
-blk(4, 15, 24, 14, C.white) // face
-// cheek shading
-blk(4, 26, 24, 3, C.shadow)
-
-// ---- eyes ----
-blk(9, 18, 3, 3, C.black)
-blk(20, 18, 3, 3, C.black)
-// eye glints
-blk(10, 18, 1, 1, C.white)
-blk(21, 18, 1, 1, C.white)
-
-// ---- muzzle ----
-blk(12, 22, 8, 6, C.snout)
-// nose
-blk(14, 22, 4, 3, C.black)
-// mouth
-blk(15, 25, 2, 2, C.black)
-blk(13, 26, 2, 1, C.black)
-blk(17, 26, 2, 1, C.black)
 
 const svg = `<svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
   <defs>

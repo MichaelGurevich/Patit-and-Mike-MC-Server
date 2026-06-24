@@ -1,11 +1,13 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { findRepoRoot, setRepoRoot, repoPaths, looksLikeRepo, DEFAULT_CONFIG } from './paths'
 import { ServerController, type ServerState } from './server'
 import { forceUnlock, readLock } from './git'
 import { readRoster } from './players'
 import { getCapabilities } from './capabilities'
 import { readProperties, setProperty } from './properties'
+import { readGameRules, setGameRule, setGameRules } from './gamerules'
 import { getConnectInfo } from './net'
 
 let win: BrowserWindow | null = null
@@ -30,14 +32,19 @@ function buildController(root: string): void {
 }
 
 function createWindow(): void {
+  // Window/taskbar icon for dev runs (the packaged .exe icon is set by
+  // electron-builder from build/icon.ico). __dirname is out/main at runtime.
+  const iconPath = join(__dirname, '../../build/icon.ico')
+
   win = new BrowserWindow({
     width: 1000,
     height: 740,
     minWidth: 760,
     minHeight: 520,
     title: 'MC Server Dashboard',
-    backgroundColor: '#0f1216',
+    backgroundColor: '#fdf0d5',
     autoHideMenuBar: true,
+    ...(existsSync(iconPath) ? { icon: iconPath } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -89,6 +96,18 @@ app.whenReady().then(() => {
     // Persist for next start (and Git sync) AND apply live if the server is up.
     setProperty(repoPaths(repoRoot), 'difficulty', value)
     controller?.send(`difficulty ${value}`)
+  })
+  ipcMain.handle('getGameRules', () => (repoRoot ? readGameRules(repoPaths(repoRoot)) : {}))
+  ipcMain.handle('setGameRule', (_e, rule: string, value: string) => {
+    if (!repoRoot) return
+    // Remember it (synced via Git, re-applied on next start) AND apply live now.
+    setGameRule(repoPaths(repoRoot), rule, value)
+    controller?.send(`gamerule ${rule} ${value}`)
+  })
+  ipcMain.handle('setGameRules', (_e, values: Record<string, string>) => {
+    if (!repoRoot) return
+    setGameRules(repoPaths(repoRoot), values)
+    for (const [rule, value] of Object.entries(values)) controller?.send(`gamerule ${rule} ${value}`)
   })
   ipcMain.handle('forceUnlock', async () => {
     if (!repoRoot) return

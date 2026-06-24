@@ -31,20 +31,38 @@ type ServerEvent =
   | { type: 'list'; online: number; max: number; names: string[] }
   | { type: 'perf'; mspt: number; tps: number }
 
-type Cmd = { label: string; cmd: string | string[] }
+// `cheat` commands change the world in non-vanilla ways. They are deliberately
+// hidden behind a collapsed drawer AND a type-the-gibberish gate so they are
+// annoying to reach — the whole point is to discourage casual cheating and keep
+// play vanilla. Non-cheat commands (save, list) stay as easy one-click buttons.
+type Cmd = { label: string; cmd: string | string[]; cheat?: boolean }
 
 const QUICK: Cmd[] = [
-  { label: '☀ Day', cmd: 'time set day' },
-  { label: '🌅 Noon', cmd: 'time set noon' },
-  { label: '🌙 Night', cmd: 'time set night' },
-  { label: '🌌 Midnight', cmd: 'time set midnight' },
-  { label: '🌤 Clear', cmd: 'weather clear' },
-  { label: '🌧 Rain', cmd: 'weather rain' },
-  { label: '⛈ Thunder', cmd: 'weather thunder' },
   { label: '💾 Save', cmd: 'save-all flush' },
   { label: '👥 Who’s on', cmd: 'list' },
-  { label: '🛏 Cozy night', cmd: ['time set night', 'weather clear', 'difficulty peaceful'] }
+  { label: '☀ Day', cmd: 'time set day', cheat: true },
+  { label: '🌅 Noon', cmd: 'time set noon', cheat: true },
+  { label: '🌙 Night', cmd: 'time set night', cheat: true },
+  { label: '🌌 Midnight', cmd: 'time set midnight', cheat: true },
+  { label: '🌤 Clear', cmd: 'weather clear', cheat: true },
+  { label: '🌧 Rain', cmd: 'weather rain', cheat: true },
+  { label: '⛈ Thunder', cmd: 'weather thunder', cheat: true },
+  { label: '🛏 Cozy night', cmd: ['time set night', 'weather clear', 'difficulty peaceful'], cheat: true }
 ]
+
+// Build a pronounceable-but-nonsense word the user must retype to confirm a
+// cheat. Length is the friction: long enough that copying it from muscle memory
+// is impossible, so each use is a deliberate choice.
+const GIB_CONS = 'bcdfghjklmnpqrstvwxz'
+const GIB_VOWELS = 'aeiou'
+function gibberish(syllables = 4): string {
+  let w = ''
+  for (let i = 0; i < syllables; i++) {
+    w += GIB_CONS[Math.floor(Math.random() * GIB_CONS.length)]
+    w += GIB_VOWELS[Math.floor(Math.random() * GIB_VOWELS.length)]
+  }
+  return w
+}
 
 const DIFFICULTIES: { id: string; label: string }[] = [
   { id: 'peaceful', label: '☮ Peaceful' },
@@ -138,6 +156,34 @@ function fmtPlaytime(ticks: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
+// Full-body skin renders (resolve real skins because online-mode=true). These are
+// free third-party render services; they go down from time to time, so we keep an
+// ordered fallback list and PlayerSkin advances to the next one on load error.
+// Any host added here must also be allowed in the renderer CSP (index.html img-src).
+function skinBodyUrls(uuid: string): string[] {
+  return [
+    `https://crafatar.com/renders/body/${uuid}?overlay&scale=8`,
+    `https://mc-heads.net/body/${uuid}/150`,
+    `https://visage.surgeplay.com/full/256/${uuid}`
+  ]
+}
+
+function PlayerSkin({ uuid, name }: { uuid: string; name: string }): JSX.Element {
+  const urls = skinBodyUrls(uuid)
+  const [idx, setIdx] = useState(0)
+  // Exhausted every service (all offline/unreachable): show a neutral placeholder.
+  if (idx >= urls.length) return <div className="pcard-skin-fallback">🧍</div>
+  return (
+    <img
+      key={urls[idx]}
+      src={urls[idx]}
+      alt={`${name} skin`}
+      loading="lazy"
+      onError={() => setIdx((i) => i + 1)}
+    />
+  )
+}
+
 function StateBadge({ state }: { state: State }): JSX.Element {
   return <span className={`badge ${state}`}>{STATE_LABEL[state]}</span>
 }
@@ -212,8 +258,15 @@ export default function App(): JSX.Element {
     port: '25565'
   })
   const [copied, setCopied] = useState('')
+  // Whether the hidden cheats drawer is revealed (false every launch — you must
+  // consciously find and press the trigger to see the cheat buttons at all).
+  const [showCheats, setShowCheats] = useState(false)
+  // Active cheat-confirmation gate, or null when no popup is open.
+  const [gate, setGate] = useState<{ label: string; cmd: string | string[]; word: string } | null>(null)
+  const [gateInput, setGateInput] = useState('')
 
   const consoleRef = useRef<HTMLDivElement>(null)
+  const gateRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -247,6 +300,21 @@ export default function App(): JSX.Element {
     }
   }, [])
 
+  const loadRules = useCallback(async () => {
+    try {
+      const stored = await window.api.getGameRules()
+      // Show vanilla as the visual default, then overlay the remembered picks.
+      const next: Record<string, boolean> = {}
+      for (const r of GAMERULES) next[r] = VANILLA_DEFAULTS[r] === 'true'
+      for (const [r, v] of Object.entries(stored)) {
+        if (v === 'true' || v === 'false') next[r] = v === 'true'
+      }
+      setRuleState(next)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   const changeDifficulty = (id: string): void => {
     setDifficulty(id)
     void window.api.setDifficulty(id)
@@ -272,6 +340,7 @@ export default function App(): JSX.Element {
     void refresh()
     void loadRoster()
     void loadProps()
+    void loadRules()
     void loadConnect()
     const offLog = window.api.onLog((line) => setLines((p) => [...p.slice(-1500), line]))
     const offState = window.api.onState((s) => {
@@ -316,13 +385,18 @@ export default function App(): JSX.Element {
       offLock()
       offEvent()
     }
-  }, [refresh, loadRoster, loadProps, loadConnect])
+  }, [refresh, loadRoster, loadProps, loadRules, loadConnect])
 
   // Uptime ticker (only meaningful while running).
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
+
+  // Focus the gate input when the cheat popup opens.
+  useEffect(() => {
+    if (gate) gateRef.current?.focus()
+  }, [gate])
 
   const visibleLines = useMemo(() => {
     const f = filter.trim().toLowerCase()
@@ -351,6 +425,28 @@ export default function App(): JSX.Element {
     setCmd('')
   }
 
+  // Run a quick command. Cheats open the gibberish gate first; everything else
+  // (save, list) fires immediately.
+  const runQuick = (q: Cmd): void => {
+    if (!q.cheat) {
+      sendCmd(q.cmd)
+      return
+    }
+    setGateInput('')
+    setGate({ label: q.label, cmd: q.cmd, word: gibberish() })
+  }
+  const gateOk = gate !== null && gateInput === gate.word
+  const confirmGate = (): void => {
+    if (!gateOk || !gate) return
+    sendCmd(gate.cmd)
+    setGate(null)
+    setGateInput('')
+  }
+  const cancelGate = (): void => {
+    setGate(null)
+    setGateInput('')
+  }
+
   const togglePerf = (): void => {
     const next = !perfOn
     setPerfOn(next)
@@ -358,19 +454,21 @@ export default function App(): JSX.Element {
     if (!next) setPerf(null)
   }
 
+  // Remember the pick (synced via Git, re-applied on next start) — main also
+  // applies it live if the server is running.
   const setRule = (rule: string, val: boolean): void => {
-    sendCmd(`gamerule ${rule} ${val}`)
     setRuleState((p) => ({ ...p, [rule]: val }))
+    void window.api.setGameRule(rule, String(val))
   }
 
   const resetVanilla = (): void => {
     if (!window.confirm('Reset all game rules to vanilla defaults?\n\nDifficulty is NOT changed.')) return
     const next: Record<string, boolean> = {}
     for (const [rule, def] of Object.entries(VANILLA_DEFAULTS)) {
-      sendCmd(`gamerule ${rule} ${def}`)
       if (def === 'true' || def === 'false') next[rule] = def === 'true'
     }
     setRuleState((p) => ({ ...p, ...next }))
+    void window.api.setGameRules(VANILLA_DEFAULTS)
   }
 
   const forceUnlock = (): void => {
@@ -633,8 +731,8 @@ export default function App(): JSX.Element {
               </form>
 
               <div className="quick">
-                {QUICK.map((q) => (
-                  <button key={q.label} disabled={!running} onClick={() => sendCmd(q.cmd)}>
+                {QUICK.filter((q) => !q.cheat).map((q) => (
+                  <button key={q.label} disabled={!running} onClick={() => runQuick(q)}>
                     {q.label}
                   </button>
                 ))}
@@ -652,37 +750,29 @@ export default function App(): JSX.Element {
                   {online.length} online · {roster.length} known
                 </span>
               </div>
-              <table className="roster">
-                <thead>
-                  <tr>
-                    <th>Player</th>
-                    <th>Playtime</th>
-                    <th>Deaths</th>
-                    <th>Mined</th>
-                    <th>Adv.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roster.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="muted">
-                        No players yet.
-                      </td>
-                    </tr>
-                  )}
+              {roster.length === 0 ? (
+                <p className="muted">No players yet.</p>
+              ) : (
+                <div className="roster-grid">
                   {roster.map((p) => (
-                    <tr key={p.uuid}>
-                      <td>
-                        <span className={`dot ${online.includes(p.name) ? 'on' : ''}`} /> {p.name}
-                      </td>
-                      <td>{fmtPlaytime(p.playTimeTicks)}</td>
-                      <td>{p.deaths}</td>
-                      <td>{p.blocksMined.toLocaleString()}</td>
-                      <td>{p.advancements}</td>
-                    </tr>
+                    <div className={`pcard ${online.includes(p.name) ? 'online' : ''}`} key={p.uuid}>
+                      <div className="pcard-name">
+                        <span className={`dot ${online.includes(p.name) ? 'on' : ''}`} />
+                        {p.name}
+                      </div>
+                      <div className="pcard-skin">
+                        <PlayerSkin uuid={p.uuid} name={p.name} />
+                      </div>
+                      <div className="pcard-stats">
+                        <span title="Playtime">⏱ {fmtPlaytime(p.playTimeTicks)}</span>
+                        <span title="Deaths">💀 {p.deaths}</span>
+                        <span title="Blocks mined">⛏ {p.blocksMined.toLocaleString()}</span>
+                        <span title="Advancements">🏆 {p.advancements}</span>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
           )}
 
@@ -691,14 +781,14 @@ export default function App(): JSX.Element {
               <div className="rules-actions">
                 <button
                   className="primary"
-                  disabled={!running}
                   onClick={resetVanilla}
                   title="Set all game rules back to vanilla defaults (difficulty unchanged)"
                 >
                   ↺ Reset to Vanilla
                 </button>
                 <span className="muted">
-                  Restores all standard game rules to their defaults. Difficulty is not changed.
+                  {running ? 'Applied live and remembered.' : 'Remembered and applied on next start.'}{' '}
+                  Difficulty is not changed.
                 </span>
               </div>
               <div className="rules">
@@ -708,14 +798,12 @@ export default function App(): JSX.Element {
                     <div className="seg">
                       <button
                         className={ruleState[r] === true ? 'on' : ''}
-                        disabled={!running}
                         onClick={() => setRule(r, true)}
                       >
                         On
                       </button>
                       <button
                         className={ruleState[r] === false ? 'on' : ''}
-                        disabled={!running}
                         onClick={() => setRule(r, false)}
                       >
                         Off
@@ -724,7 +812,9 @@ export default function App(): JSX.Element {
                   </div>
                 ))}
                 {!running && (
-                  <p className="muted hint">Start the server to change game rules live.</p>
+                  <p className="muted hint">
+                    Choices are saved and applied automatically when the server starts.
+                  </p>
                 )}
               </div>
             </div>
@@ -732,7 +822,79 @@ export default function App(): JSX.Element {
         </main>
       </div>
 
-      <footer>{repoRoot}</footer>
+      {gate && (
+        <div className="gate-overlay" onClick={cancelGate}>
+          <div className="gate-card" onClick={(e) => e.stopPropagation()}>
+            <h3>Run a cheat?</h3>
+            <p>
+              You’re about to run <strong>{gate.label}</strong>. This breaks vanilla play.
+            </p>
+            <p className="muted">To confirm, type this word exactly:</p>
+            <div className="gate-word">{gate.word}</div>
+            <input
+              ref={gateRef}
+              className="gate-input"
+              placeholder="type the word above"
+              value={gateInput}
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              onChange={(e) => setGateInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') confirmGate()
+                if (e.key === 'Escape') cancelGate()
+              }}
+            />
+            <div className="gate-actions">
+              <button onClick={cancelGate}>Cancel</button>
+              <button className="primary" disabled={!gateOk} onClick={confirmGate}>
+                Run it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCheats && (
+        <div className="gate-overlay" onClick={() => setShowCheats(false)}>
+          <div className="gate-card" onClick={(e) => e.stopPropagation()}>
+            <h3>⚠ Cheats — break vanilla play</h3>
+            <p className="muted">
+              These change time and weather. Each still needs a typed confirmation — on purpose.
+            </p>
+            <div className="quick cheats-grid">
+              {QUICK.filter((q) => q.cheat).map((q) => (
+                <button
+                  key={q.label}
+                  disabled={!running}
+                  onClick={() => {
+                    setShowCheats(false)
+                    runQuick(q)
+                  }}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+            <div className="gate-actions">
+              <button onClick={() => setShowCheats(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <footer>
+        <span className="footer-path">{repoRoot}</span>
+        {/* Deliberately tiny and unlabeled: you have to go looking for it. */}
+        <button
+          className="cheats-trigger"
+          title="Cheats"
+          aria-label="Cheats"
+          onClick={() => setShowCheats(true)}
+        >
+          ⋄
+        </button>
+      </footer>
     </div>
   )
 }

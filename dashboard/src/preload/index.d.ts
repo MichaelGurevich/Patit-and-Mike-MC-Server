@@ -64,6 +64,9 @@ export interface DashboardApi {
   getCapabilities(): Promise<Capabilities | null>
   getProps(): Promise<Record<string, string>>
   setDifficulty(value: string): Promise<void>
+  getGameRules(): Promise<Record<string, string>>
+  setGameRule(rule: string, value: string): Promise<void>
+  setGameRules(values: Record<string, string>): Promise<void>
   getConnectInfo(): Promise<ConnectInfo>
   forceUnlock(): Promise<void>
   chooseRepo(): Promise<ChooseRepoResult>

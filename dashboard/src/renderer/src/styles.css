@@ -483,6 +483,68 @@ body {
   padding: 7px 12px;
 }
 
+/* Collapsed cheat drawer — deliberately understated and out of the way. */
+/* Cheat buttons inside the reveal popup. */
+.cheats-grid {
+  margin: 12px 0 4px;
+}
+
+/* Type-the-gibberish confirmation popup for cheats. */
+.gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 20px;
+}
+.gate-card {
+  background: var(--panel);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm) var(--shadow-sm) 0 0 var(--shadow);
+  padding: 18px 20px;
+  width: min(420px, 100%);
+}
+.gate-card h3 {
+  margin: 0 0 10px;
+}
+.gate-card p {
+  margin: 0 0 8px;
+}
+.gate-word {
+  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-align: center;
+  user-select: none;
+  padding: 10px;
+  margin: 4px 0 12px;
+  background: var(--panel-2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+}
+.gate-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  padding: 9px 12px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+}
+.gate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 /* ============================================================
    BUTTONS
    ============================================================ */
@@ -646,6 +708,66 @@ table.roster {
   background: var(--green-h);
 }
 
+/* ---------- Players grid (full-body skin cards) ---------- */
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+.pcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  background: var(--panel-2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm) var(--shadow-sm) 0 var(--shadow);
+}
+.pcard.online {
+  background: var(--inset);
+  box-shadow: var(--shadow-x) var(--shadow-y) 0 var(--green-h);
+}
+.pcard-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 900;
+  font-size: 13px;
+  text-align: center;
+  word-break: break-word;
+}
+.pcard-name .dot {
+  margin-right: 0;
+}
+.pcard-skin {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 150px;
+}
+.pcard-skin img {
+  height: 150px;
+  width: auto;
+  image-rendering: pixelated; /* keep the blocky Minecraft look */
+}
+.pcard-skin-fallback {
+  /* shown only if every render service is unreachable (offline) */
+  font-size: 64px;
+  line-height: 150px;
+  opacity: 0.5;
+}
+.pcard-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 /* ============================================================
    GAME RULES tab
    ============================================================ */
@@ -720,13 +842,40 @@ table.roster {
    ============================================================ */
 footer {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 700;
   color: var(--muted);
-  text-align: center;
+}
+.footer-path {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Tiny, dim, unlabeled — easy to overlook, there if you go looking. */
+.cheats-trigger {
+  flex-shrink: 0;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: none;
+  opacity: 0.25;
+  cursor: pointer;
+}
+.cheats-trigger:hover {
+  opacity: 0.7;
+  transform: none;
+  box-shadow: none;
 }
 
 /* ============================================================

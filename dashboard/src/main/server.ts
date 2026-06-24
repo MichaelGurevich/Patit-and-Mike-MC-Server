@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import type { RepoPaths, AppConfig } from './paths'
 import { findJava } from './java'
 import { acquire, releaseAndPush, readLock, type LockInfo } from './git'
+import { readGameRules } from './gamerules'
 import { parse, isPerfNoise, type ServerEvent } from './logwatch'
 
 export type ServerState = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'error'
@@ -62,6 +63,14 @@ export class ServerController {
     this.readyAt = Date.now()
     // Seed presence once, and begin perf polling if the user wants it.
     if (this.proc) this.proc.stdin.write('list\n')
+    // Re-apply the remembered game-rule selections so the server always starts
+    // with the settings chosen in the dashboard. Remember-only: rules never set
+    // in the dashboard are absent here and keep whatever the world already has.
+    if (this.proc) {
+      for (const [rule, value] of Object.entries(readGameRules(this.paths))) {
+        this.proc.stdin.write(`gamerule ${rule} ${value}\n`)
+      }
+    }
     if (this.perfDesired) this.startPerfTimer()
   }
 
