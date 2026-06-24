@@ -36,6 +36,15 @@ export interface ConnectInfo {
   port: string
 }
 
+export interface MemoryInfo {
+  /** Saved per-machine override in MB, or null when using the default. */
+  overrideMB: number | null
+  /** The built-in default max heap (-Xmx) in MB. */
+  defaultMB: number
+  /** This machine's total physical RAM in MB. */
+  totalMB: number
+}
+
 export interface Capabilities {
   javaOk: boolean
   javaVersion: number | null
@@ -60,6 +69,8 @@ export interface DashboardApi {
   stop(): Promise<void>
   send(cmd: string): Promise<void>
   setPerf(on: boolean): Promise<void>
+  getMemory(): Promise<MemoryInfo>
+  setMemory(mb: number | null): Promise<number | null>
   getRoster(): Promise<PlayerStat[]>
   getCapabilities(): Promise<Capabilities | null>
   getProps(): Promise<Record<string, string>>

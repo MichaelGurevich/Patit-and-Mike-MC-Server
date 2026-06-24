@@ -20,6 +20,37 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 interface Settings {
   repoRoot?: string
+  /** Per-machine RAM override for the server, in MB. Absent = use DEFAULT_CONFIG.
+   *  Deliberately NOT in the repo/git config: Mike's PC and Patit's Mac have
+   *  different amounts of RAM, so this stays local to each machine. */
+  maxRamMB?: number
+}
+
+/** Parse a JVM heap string like "4G" or "2048M" into whole megabytes. */
+export function parseHeapMB(s: string): number {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*([GMgm])?\s*$/.exec(s)
+  if (!m) return 0
+  const n = parseFloat(m[1])
+  return Math.round((m[2] || 'M').toUpperCase() === 'G' ? n * 1024 : n)
+}
+
+/** The default max heap (-Xmx) in MB, from DEFAULT_CONFIG. */
+export function defaultMemoryMB(): number {
+  return parseHeapMB(DEFAULT_CONFIG.xmx)
+}
+
+/**
+ * JVM heap flags for spawning the server. With a per-machine RAM override we set
+ * -Xms == -Xmx: a single fixed-size heap avoids the GC resize pauses that show up
+ * as solo "Can't keep up!" hitches. With no override we fall back to the pinned
+ * config values (Xms 2G / Xmx 4G), preserving the original behaviour.
+ */
+export function memoryFlags(cfg: AppConfig, overrideMB: number | null): { xms: string; xmx: string } {
+  if (overrideMB && overrideMB > 0) {
+    const v = `${Math.round(overrideMB)}M`
+    return { xms: v, xmx: v }
+  }
+  return { xms: cfg.xms, xmx: cfg.xmx }
 }
 
 function settingsPath(): string {
@@ -75,6 +106,20 @@ export function findRepoRoot(): string | null {
 export function setRepoRoot(dir: string): void {
   const s = loadSettings()
   s.repoRoot = dir
+  saveSettings(s)
+}
+
+/** The saved per-machine RAM override in MB, or null when none is set. */
+export function loadMemoryMB(): number | null {
+  const v = loadSettings().maxRamMB
+  return typeof v === 'number' && v > 0 ? v : null
+}
+
+/** Save (or clear, when null) the per-machine RAM override in MB. */
+export function setMemoryMB(mb: number | null): void {
+  const s = loadSettings()
+  if (mb && mb > 0) s.maxRamMB = Math.round(mb)
+  else delete s.maxRamMB
   saveSettings(s)
 }
 

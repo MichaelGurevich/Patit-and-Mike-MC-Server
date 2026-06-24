@@ -1,7 +1,17 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { findRepoRoot, setRepoRoot, repoPaths, looksLikeRepo, DEFAULT_CONFIG } from './paths'
+import { totalmem } from 'node:os'
+import {
+  findRepoRoot,
+  setRepoRoot,
+  repoPaths,
+  looksLikeRepo,
+  DEFAULT_CONFIG,
+  loadMemoryMB,
+  setMemoryMB,
+  defaultMemoryMB
+} from './paths'
 import { ServerController, type ServerState } from './server'
 import { forceUnlock, readLock } from './git'
 import { readRoster } from './players'
@@ -29,6 +39,17 @@ function buildController(root: string): void {
     },
     event: (ev) => send('event', ev)
   })
+  // Apply the saved per-machine RAM override (if any) so the next start uses it.
+  controller.setMemoryMB(loadMemoryMB())
+}
+
+const TOTAL_RAM_MB = Math.floor(totalmem() / (1024 * 1024))
+
+/** Keep a requested heap within sane bounds: at least 1 GB, never more than the
+ *  machine's physical RAM (allocating beyond it would make things far worse). */
+function clampMemoryMB(mb: number | null): number | null {
+  if (mb == null || !Number.isFinite(mb) || mb <= 0) return null
+  return Math.max(1024, Math.min(Math.round(mb), TOTAL_RAM_MB))
 }
 
 function createWindow(): void {
@@ -83,6 +104,20 @@ app.whenReady().then(() => {
   ipcMain.handle('stop', () => controller?.stop())
   ipcMain.handle('send', (_e, cmd: string) => controller?.send(cmd))
   ipcMain.handle('setPerf', (_e, on: boolean) => controller?.setPerfPolling(on))
+  ipcMain.handle('getMemory', () => {
+    const overrideMB = loadMemoryMB()
+    return {
+      overrideMB, // null when using the default
+      defaultMB: defaultMemoryMB(),
+      totalMB: TOTAL_RAM_MB
+    }
+  })
+  ipcMain.handle('setMemory', (_e, mb: number | null) => {
+    const clamped = clampMemoryMB(mb)
+    setMemoryMB(clamped)
+    controller?.setMemoryMB(clamped)
+    return clamped
+  })
   ipcMain.handle('getRoster', () => (repoRoot ? readRoster(repoPaths(repoRoot)) : []))
   ipcMain.handle('getCapabilities', () => (repoRoot ? getCapabilities(repoRoot, DEFAULT_CONFIG) : null))
   ipcMain.handle('getProps', () => (repoRoot ? readProperties(repoPaths(repoRoot)) : {}))

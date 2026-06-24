@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import type { RepoPaths, AppConfig } from './paths'
+import { memoryFlags, type RepoPaths, type AppConfig } from './paths'
 import { findJava } from './java'
 import { acquire, releaseAndPush, readLock, type LockInfo } from './git'
 import { readGameRules } from './gamerules'
@@ -23,6 +23,8 @@ export class ServerController {
   private readyAt: number | null = null
   private perfDesired = false
   private perfTimer: ReturnType<typeof setInterval> | null = null
+  // Per-machine RAM override (MB) for -Xmx/-Xms; null = use the pinned config.
+  private memMB: number | null = null
 
   constructor(
     private readonly paths: RepoPaths,
@@ -36,6 +38,16 @@ export class ServerController {
 
   getReadyAt(): number | null {
     return this.readyAt
+  }
+
+  getMemoryMB(): number | null {
+    return this.memMB
+  }
+
+  /** Set the per-machine RAM override (MB) for -Xmx/-Xms. Takes effect on the
+   *  next start — a running JVM's heap size is fixed and cannot change live. */
+  setMemoryMB(mb: number | null): void {
+    this.memMB = mb && mb > 0 ? mb : null
   }
 
   /** Turn periodic `tick query` performance polling on/off. */
@@ -111,11 +123,12 @@ export class ServerController {
       return
     }
 
-    this.emit.log('Starting the Minecraft server...')
+    const { xms, xmx } = memoryFlags(this.cfg, this.memMB)
+    this.emit.log(`Starting the Minecraft server... (memory: ${xmx})`)
     this.releasing = false
     const proc = spawn(
       java,
-      [`-Xms${this.cfg.xms}`, `-Xmx${this.cfg.xmx}`, '-jar', 'server.jar', 'nogui'],
+      [`-Xms${xms}`, `-Xmx${xmx}`, '-jar', 'server.jar', 'nogui'],
       { cwd: this.paths.serverDir, windowsHide: true }
     )
     this.proc = proc

@@ -156,6 +156,28 @@ function fmtPlaytime(ticks: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
+interface MemoryInfo {
+  overrideMB: number | null
+  defaultMB: number
+  totalMB: number
+}
+
+// RAM tiers (GB) offered in the memory picker. Filtered down to what physically
+// fits this machine; the default and any current pick are always kept.
+const RAM_TIERS_GB = [2, 3, 4, 6, 8, 12, 16, 24, 32]
+
+function memChoicesMB(totalMB: number, defaultMB: number, overrideMB: number | null): number[] {
+  const set = new Set<number>(RAM_TIERS_GB.map((g) => g * 1024).filter((mb) => mb <= totalMB))
+  if (defaultMB <= totalMB) set.add(defaultMB)
+  if (overrideMB) set.add(overrideMB)
+  return [...set].sort((a, b) => a - b)
+}
+
+function gbLabel(mb: number): string {
+  const gb = mb / 1024
+  return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`
+}
+
 // Full-body skin renders (resolve real skins because online-mode=true). These are
 // free third-party render services; they go down from time to time, so we keep an
 // ordered fallback list and PlayerSkin advances to the next one on load error.
@@ -252,6 +274,7 @@ export default function App(): JSX.Element {
   const [perf, setPerf] = useState<{ mspt: number; tps: number } | null>(null)
   const [ruleState, setRuleState] = useState<Record<string, boolean>>({})
   const [difficulty, setDifficulty] = useState('')
+  const [mem, setMem] = useState<MemoryInfo | null>(null)
   const [connect, setConnect] = useState<{ lan: string | null; tailscale: string | null; port: string }>({
     lan: null,
     tailscale: null,
@@ -320,6 +343,20 @@ export default function App(): JSX.Element {
     void window.api.setDifficulty(id)
   }
 
+  const loadMem = useCallback(async () => {
+    try {
+      setMem(await window.api.getMemory())
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // Heap size is fixed once the JVM starts, so this only affects the next launch.
+  const changeMem = (mb: number): void => {
+    setMem((m) => (m ? { ...m, overrideMB: mb } : m)) // optimistic
+    void window.api.setMemory(mb).then(() => loadMem()) // reconcile with clamped value
+  }
+
   const loadConnect = useCallback(async () => {
     try {
       setConnect(await window.api.getConnectInfo())
@@ -342,6 +379,7 @@ export default function App(): JSX.Element {
     void loadProps()
     void loadRules()
     void loadConnect()
+    void loadMem()
     const offLog = window.api.onLog((line) => setLines((p) => [...p.slice(-1500), line]))
     const offState = window.api.onState((s) => {
       setState(s as State)
@@ -385,7 +423,7 @@ export default function App(): JSX.Element {
       offLock()
       offEvent()
     }
-  }, [refresh, loadRoster, loadProps, loadRules, loadConnect])
+  }, [refresh, loadRoster, loadProps, loadRules, loadConnect, loadMem])
 
   // Uptime ticker (only meaningful while running).
   useEffect(() => {
@@ -576,6 +614,37 @@ export default function App(): JSX.Element {
                   {running ? 'Applied live' : 'Saved for next start'}
                 </span>
               </div>
+
+              {mem && (
+                <div>
+                  <div className="field-label">Server memory (RAM)</div>
+                  <div className="diff-grid">
+                    {memChoicesMB(mem.totalMB, mem.defaultMB, mem.overrideMB).map((mb) => {
+                      const selected = (mem.overrideMB ?? mem.defaultMB) === mb
+                      return (
+                        <button
+                          key={mb}
+                          className={selected ? 'on' : ''}
+                          onClick={() => changeMem(mb)}
+                        >
+                          {gbLabel(mb)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {(() => {
+                    const selectedMB = mem.overrideMB ?? mem.defaultMB
+                    const high = selectedMB > mem.totalMB * 0.8
+                    return (
+                      <span className={`muted hint2${high ? ' warn' : ''}`}>
+                        {high
+                          ? `⚠ That's most of this PC's ${gbLabel(mem.totalMB)} — leave some for your system.`
+                          : `Default ${gbLabel(mem.defaultMB)} · this PC has ${gbLabel(mem.totalMB)} · applies on next start.`}
+                      </span>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           </section>
 

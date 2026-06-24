@@ -254,6 +254,10 @@ body {
   margin-top: 8px;
   font-size: 11px;
 }
+.hint2.warn {
+  color: var(--text);
+  font-weight: 800;
+}
 
 /* ---------- Connect ---------- */
 .connect {
