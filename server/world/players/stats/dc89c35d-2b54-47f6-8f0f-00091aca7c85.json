@@ -1,25 +1,28 @@
 {
   "stats": {
     "minecraft:used": {
-      "minecraft:birch_log": 2
-    },
-    "minecraft:mined": {
+      "minecraft:wildflowers": 3,
       "minecraft:birch_log": 2
     },
     "minecraft:custom": {
       "minecraft:sprint_one_cm": 242,
-      "minecraft:time_since_rest": 7806,
+      "minecraft:time_since_rest": 9774,
       "minecraft:fall_one_cm": 725,
-      "minecraft:walk_one_cm": 14986,
-      "minecraft:total_world_time": 7806,
-      "minecraft:leave_game": 3,
+      "minecraft:walk_one_cm": 23089,
+      "minecraft:total_world_time": 9774,
+      "minecraft:leave_game": 4,
       "minecraft:fly_one_cm": 992,
       "minecraft:damage_taken": 20,
-      "minecraft:play_time": 7806,
+      "minecraft:play_time": 9774,
       "minecraft:jump": 9,
-      "minecraft:time_since_death": 7806
+      "minecraft:time_since_death": 9774
     },
     "minecraft:picked_up": {
+      "minecraft:birch_log": 2,
+      "minecraft:wildflowers": 3
+    },
+    "minecraft:mined": {
+      "minecraft:wildflowers": 1,
       "minecraft:birch_log": 2
     }
   },
