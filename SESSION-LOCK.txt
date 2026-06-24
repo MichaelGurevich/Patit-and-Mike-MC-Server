@@ -1,5 +1,5 @@
-status=free
+status=active
 holder=MichaelGurevich
 machine=LAPTOP-3TSQCQE1
-since=2026-06-25 00:29:44
-note=released
+since=2026-06-25 00:33:38
+note=playing
