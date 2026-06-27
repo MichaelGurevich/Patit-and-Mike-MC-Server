@@ -1,23 +1,13 @@
 {
   "stats": {
-    "minecraft:mined": {
-      "minecraft:melon": 6,
-      "minecraft:wildflowers": 1,
-      "minecraft:dirt": 18,
-      "minecraft:vine": 1,
-      "minecraft:pumpkin": 1,
-      "minecraft:birch_leaves": 1,
-      "minecraft:grass_block": 7,
+    "minecraft:dropped": {
       "minecraft:peony": 1,
-      "minecraft:bamboo": 6,
-      "minecraft:white_bed": 3,
-      "minecraft:short_grass": 5,
-      "minecraft:oak_leaves": 3,
-      "minecraft:crafting_table": 2,
-      "minecraft:birch_log": 18,
-      "minecraft:oak_log": 6,
-      "minecraft:stripped_oak_log": 6,
-      "minecraft:stone": 1
+      "minecraft:salmon": 10,
+      "minecraft:crafting_table": 1,
+      "minecraft:white_bed": 1,
+      "minecraft:stone_pickaxe": 1,
+      "minecraft:wooden_pickaxe": 2,
+      "minecraft:white_wool": 2
     },
     "minecraft:picked_up": {
       "minecraft:dirt": 25,
@@ -50,51 +40,6 @@
       "minecraft:stone_axe": 1,
       "minecraft:mutton": 7
     },
-    "minecraft:killed": {
-      "minecraft:salmon": 19,
-      "minecraft:chicken": 1,
-      "minecraft:pig": 7,
-      "minecraft:sheep": 5,
-      "minecraft:cow": 4
-    },
-    "minecraft:dropped": {
-      "minecraft:peony": 1,
-      "minecraft:salmon": 10,
-      "minecraft:crafting_table": 1,
-      "minecraft:white_bed": 1,
-      "minecraft:stone_pickaxe": 1,
-      "minecraft:wooden_pickaxe": 2,
-      "minecraft:white_wool": 2
-    },
-    "minecraft:custom": {
-      "minecraft:interact_with_crafting_table": 7,
-      "minecraft:time_since_rest": 13716,
-      "minecraft:walk_one_cm": 297060,
-      "minecraft:leave_game": 6,
-      "minecraft:walk_under_water_one_cm": 7790,
-      "minecraft:mob_kills": 36,
-      "minecraft:damage_taken": 20,
-      "minecraft:boat_one_cm": 271289,
-      "minecraft:play_time": 78106,
-      "minecraft:damage_dealt": 2099,
-      "minecraft:jump": 534,
-      "minecraft:time_since_death": 78106,
-      "minecraft:drop": 18,
-      "minecraft:sprint_one_cm": 54446,
-      "minecraft:sleep_in_bed": 2,
-      "minecraft:fall_one_cm": 8370,
-      "minecraft:total_world_time": 78106,
-      "minecraft:swim_one_cm": 18161,
-      "minecraft:fly_one_cm": 76745,
-      "minecraft:walk_on_water_one_cm": 20882,
-      "minecraft:crouch_one_cm": 7045,
-      "minecraft:sneak_time": 2403,
-      "minecraft:climb_one_cm": 259
-    },
-    "minecraft:crafted": {
-      "minecraft:white_bed": 1,
-      "minecraft:birch_boat": 1
-    },
     "minecraft:used": {
       "minecraft:stone_axe": 85,
       "minecraft:wildflowers": 3,
@@ -103,6 +48,61 @@
       "minecraft:wooden_pickaxe": 1,
       "minecraft:white_bed": 2,
       "minecraft:birch_log": 2
+    },
+    "minecraft:custom": {
+      "minecraft:interact_with_crafting_table": 7,
+      "minecraft:time_since_rest": 15631,
+      "minecraft:walk_one_cm": 297060,
+      "minecraft:leave_game": 7,
+      "minecraft:walk_under_water_one_cm": 7790,
+      "minecraft:mob_kills": 36,
+      "minecraft:damage_taken": 20,
+      "minecraft:boat_one_cm": 271289,
+      "minecraft:play_time": 80021,
+      "minecraft:damage_dealt": 2099,
+      "minecraft:jump": 534,
+      "minecraft:time_since_death": 80021,
+      "minecraft:drop": 18,
+      "minecraft:sprint_one_cm": 54446,
+      "minecraft:sleep_in_bed": 2,
+      "minecraft:fall_one_cm": 8370,
+      "minecraft:total_world_time": 80021,
+      "minecraft:swim_one_cm": 18161,
+      "minecraft:fly_one_cm": 76745,
+      "minecraft:walk_on_water_one_cm": 20882,
+      "minecraft:crouch_one_cm": 7045,
+      "minecraft:sneak_time": 2403,
+      "minecraft:climb_one_cm": 259
+    },
+    "minecraft:killed": {
+      "minecraft:salmon": 19,
+      "minecraft:chicken": 1,
+      "minecraft:pig": 7,
+      "minecraft:sheep": 5,
+      "minecraft:cow": 4
+    },
+    "minecraft:crafted": {
+      "minecraft:white_bed": 1,
+      "minecraft:birch_boat": 1
+    },
+    "minecraft:mined": {
+      "minecraft:melon": 6,
+      "minecraft:wildflowers": 1,
+      "minecraft:dirt": 18,
+      "minecraft:vine": 1,
+      "minecraft:pumpkin": 1,
+      "minecraft:birch_leaves": 1,
+      "minecraft:grass_block": 7,
+      "minecraft:peony": 1,
+      "minecraft:bamboo": 6,
+      "minecraft:white_bed": 3,
+      "minecraft:short_grass": 5,
+      "minecraft:oak_leaves": 3,
+      "minecraft:crafting_table": 2,
+      "minecraft:birch_log": 18,
+      "minecraft:oak_log": 6,
+      "minecraft:stripped_oak_log": 6,
+      "minecraft:stone": 1
     }
   },
   "DataVersion": 4903
