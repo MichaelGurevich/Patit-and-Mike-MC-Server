@@ -10,7 +10,9 @@ import {
   DEFAULT_CONFIG,
   loadMemoryMB,
   setMemoryMB,
-  defaultMemoryMB
+  defaultMemoryMB,
+  loadNotify,
+  setNotify
 } from './paths'
 import { ServerController, type ServerState } from './server'
 import { forceUnlock, readLock } from './git'
@@ -19,6 +21,7 @@ import { getCapabilities } from './capabilities'
 import { readProperties, setProperty } from './properties'
 import { readGameRules, setGameRule, setGameRules } from './gamerules'
 import { getConnectInfo } from './net'
+import { buildNotifyMessage } from '../shared/helpers'
 
 let win: BrowserWindow | null = null
 let controller: ServerController | null = null
@@ -29,6 +32,17 @@ function send(channel: string, payload: unknown): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
 }
 
+// Game-rule edits often arrive in bursts (one IPC per rule). Collapse them into a
+// single "Game rules updated" broadcast so players don't get spammed.
+let rulesNotifyTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleRulesNotify(): void {
+  if (rulesNotifyTimer) clearTimeout(rulesNotifyTimer)
+  rulesNotifyTimer = setTimeout(() => {
+    rulesNotifyTimer = null
+    if (loadNotify()) controller?.send(buildNotifyMessage('rules'))
+  }, 1500)
+}
+
 function buildController(root: string): void {
   const paths = repoPaths(root)
   controller = new ServerController(paths, DEFAULT_CONFIG, {
@@ -37,7 +51,11 @@ function buildController(root: string): void {
       send('state', s)
       if (s === 'stopped' && quitting) app.quit()
     },
-    event: (ev) => send('event', ev)
+    event: (ev) => {
+      send('event', ev)
+      // When the server finishes booting, optionally announce it in-game.
+      if (ev.type === 'ready' && loadNotify()) controller?.send(buildNotifyMessage('ready'))
+    }
   })
   // Apply the saved per-machine RAM override (if any) so the next start uses it.
   controller.setMemoryMB(loadMemoryMB())
@@ -101,7 +119,8 @@ app.whenReady().then(() => {
     lock: repoRoot ? readLock(repoPaths(repoRoot)) : null
   }))
   ipcMain.handle('start', () => controller?.start())
-  ipcMain.handle('stop', () => controller?.stop())
+  ipcMain.handle('stop', () => controller?.stop({ notify: loadNotify(), countdown: true }))
+  ipcMain.handle('cancelStop', () => controller?.cancelStop())
   ipcMain.handle('send', (_e, cmd: string) => controller?.send(cmd))
   ipcMain.handle('setPerf', (_e, on: boolean) => controller?.setPerfPolling(on))
   ipcMain.handle('getMemory', () => {
@@ -118,6 +137,15 @@ app.whenReady().then(() => {
     controller?.setMemoryMB(clamped)
     return clamped
   })
+  ipcMain.handle('getNotify', () => loadNotify())
+  ipcMain.handle('setNotify', (_e, on: boolean) => {
+    setNotify(!!on)
+    return loadNotify()
+  })
+  ipcMain.handle('broadcast', (_e, text: string) => {
+    if (repoRoot && text.trim()) controller?.say(text.trim())
+  })
+  ipcMain.handle('getLoadedProps', () => controller?.getLoadedProps() ?? null)
   ipcMain.handle('getRoster', () => (repoRoot ? readRoster(repoPaths(repoRoot)) : []))
   ipcMain.handle('getCapabilities', () => (repoRoot ? getCapabilities(repoRoot, DEFAULT_CONFIG) : null))
   ipcMain.handle('getProps', () => (repoRoot ? readProperties(repoPaths(repoRoot)) : {}))
@@ -126,11 +154,32 @@ app.whenReady().then(() => {
     const port = repoRoot ? readProperties(repoPaths(repoRoot))['server-port'] || '25565' : '25565'
     return { ...info, port }
   })
+  ipcMain.handle('setProp', (_e, key: string, value: string) => {
+    if (!repoRoot) return
+    // Restart-only server.properties fields (max-players, view-distance, etc.).
+    // Persist for next start + Git sync; no live apply (these take effect on restart).
+    setProperty(repoPaths(repoRoot), key, String(value))
+  })
+  ipcMain.handle('setGamemode', (_e, value: string) => {
+    if (!repoRoot) return
+    // Default join gamemode: persist for next start AND apply to new joins live.
+    setProperty(repoPaths(repoRoot), 'gamemode', value)
+    controller?.send(`defaultgamemode ${value}`)
+  })
+  ipcMain.handle('setWhitelist', (_e, on: boolean) => {
+    if (!repoRoot) return
+    // Persist both flags, apply live, and optionally announce the change.
+    setProperty(repoPaths(repoRoot), 'white-list', String(on))
+    setProperty(repoPaths(repoRoot), 'enforce-whitelist', String(on))
+    controller?.send(`whitelist ${on ? 'on' : 'off'}`)
+    if (loadNotify()) controller?.send(buildNotifyMessage('whitelist', on ? 'on' : 'off'))
+  })
   ipcMain.handle('setDifficulty', (_e, value: string) => {
     if (!repoRoot) return
     // Persist for next start (and Git sync) AND apply live if the server is up.
     setProperty(repoPaths(repoRoot), 'difficulty', value)
     controller?.send(`difficulty ${value}`)
+    if (loadNotify()) controller?.send(buildNotifyMessage('difficulty', value))
   })
   ipcMain.handle('getGameRules', () => (repoRoot ? readGameRules(repoPaths(repoRoot)) : {}))
   ipcMain.handle('setGameRule', (_e, rule: string, value: string) => {
@@ -138,11 +187,13 @@ app.whenReady().then(() => {
     // Remember it (synced via Git, re-applied on next start) AND apply live now.
     setGameRule(repoPaths(repoRoot), rule, value)
     controller?.send(`gamerule ${rule} ${value}`)
+    scheduleRulesNotify()
   })
   ipcMain.handle('setGameRules', (_e, values: Record<string, string>) => {
     if (!repoRoot) return
     setGameRules(repoPaths(repoRoot), values)
     for (const [rule, value] of Object.entries(values)) controller?.send(`gamerule ${rule} ${value}`)
+    scheduleRulesNotify()
   })
   ipcMain.handle('forceUnlock', async () => {
     if (!repoRoot) return
@@ -172,7 +223,7 @@ app.on('before-quit', (e) => {
     e.preventDefault()
     quitting = true
     send('log', 'Window closing — stopping the server and saving first...')
-    controller.stop()
+    controller.stop({ notify: false, countdown: false })
   }
 })
 

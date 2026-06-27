@@ -62,18 +62,28 @@ export type ServerEvent =
   | { type: 'advancement'; name: string; kind: string; title: string }
   | { type: 'list'; online: number; max: number; names: string[] }
   | { type: 'perf'; mspt: number; tps: number }
+  | { type: 'countdown'; secondsLeft: number }
+  | { type: 'countdownCancelled' }
 
 export interface DashboardApi {
   getStatus(): Promise<StatusInfo>
   start(): Promise<void>
   stop(): Promise<void>
+  cancelStop(): Promise<void>
   send(cmd: string): Promise<void>
   setPerf(on: boolean): Promise<void>
   getMemory(): Promise<MemoryInfo>
   setMemory(mb: number | null): Promise<number | null>
+  getNotify(): Promise<boolean>
+  setNotify(on: boolean): Promise<boolean>
+  broadcast(text: string): Promise<void>
   getRoster(): Promise<PlayerStat[]>
   getCapabilities(): Promise<Capabilities | null>
   getProps(): Promise<Record<string, string>>
+  getLoadedProps(): Promise<Record<string, string> | null>
+  setProp(key: string, value: string): Promise<void>
+  setGamemode(value: string): Promise<void>
+  setWhitelist(on: boolean): Promise<void>
   setDifficulty(value: string): Promise<void>
   getGameRules(): Promise<Record<string, string>>
   setGameRule(rule: string, value: string): Promise<void>

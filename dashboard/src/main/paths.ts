@@ -24,6 +24,9 @@ interface Settings {
    *  Deliberately NOT in the repo/git config: Mike's PC and Patit's Mac have
    *  different amounts of RAM, so this stays local to each machine. */
   maxRamMB?: number
+  /** Whether auto-notify `say` pings are sent on server events. Absent = on;
+   *  only an explicit `false` disables it. Local per-machine preference. */
+  notifyPlayers?: boolean
 }
 
 /** Parse a JVM heap string like "4G" or "2048M" into whole megabytes. */
@@ -120,6 +123,19 @@ export function setMemoryMB(mb: number | null): void {
   const s = loadSettings()
   if (mb && mb > 0) s.maxRamMB = Math.round(mb)
   else delete s.maxRamMB
+  saveSettings(s)
+}
+
+/** Whether auto-notify `say` pings are enabled. Defaults TRUE when unset —
+ *  only an explicit stored `false` turns notifications off. */
+export function loadNotify(): boolean {
+  return loadSettings().notifyPlayers !== false
+}
+
+/** Persist the auto-notify toggle. Always written (true or false). */
+export function setNotify(on: boolean): void {
+  const s = loadSettings()
+  s.notifyPlayers = on
   saveSettings(s)
 }
 

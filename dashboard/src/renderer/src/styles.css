@@ -487,68 +487,6 @@ body {
   padding: 7px 12px;
 }
 
-/* Collapsed cheat drawer — deliberately understated and out of the way. */
-/* Cheat buttons inside the reveal popup. */
-.cheats-grid {
-  margin: 12px 0 4px;
-}
-
-/* Type-the-gibberish confirmation popup for cheats. */
-.gate-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  padding: 20px;
-}
-.gate-card {
-  background: var(--panel);
-  border: var(--bw) solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm) var(--shadow-sm) 0 0 var(--shadow);
-  padding: 18px 20px;
-  width: min(420px, 100%);
-}
-.gate-card h3 {
-  margin: 0 0 10px;
-}
-.gate-card p {
-  margin: 0 0 8px;
-}
-.gate-word {
-  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-align: center;
-  user-select: none;
-  padding: 10px;
-  margin: 4px 0 12px;
-  background: var(--panel-2);
-  border: var(--bw) solid var(--border);
-  border-radius: var(--radius);
-}
-.gate-input {
-  width: 100%;
-  font-family: inherit;
-  font-size: 15px;
-  padding: 9px 12px;
-  background: var(--panel-2);
-  color: var(--text);
-  border: var(--bw) solid var(--border);
-  border-radius: var(--radius);
-  box-sizing: border-box;
-}
-.gate-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-}
-
 /* ============================================================
    BUTTONS
    ============================================================ */
@@ -821,6 +759,9 @@ table.roster {
   flex-shrink: 0;
 }
 .seg button {
+  flex: 1 1 0;
+  min-width: 46px;
+  text-align: center;
   font-size: 12px;
   font-weight: 800;
   padding: 5px 14px;
@@ -842,6 +783,132 @@ table.roster {
 }
 
 /* ============================================================
+   ADVANCED tab
+   ============================================================ */
+/* Each Advanced block is a bordered card-like section stacked in the panel. */
+.adv-section {
+  background: var(--panel-2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm) var(--shadow-sm) 0 0 var(--shadow);
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.adv-section-title {
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Notifications master-toggle row: caption on the left, seg on the right. */
+.adv-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.adv-row .adv-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Free-text broadcast input + send button. */
+.broadcast-row {
+  display: flex;
+  gap: 8px;
+}
+.broadcast-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--inset);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  outline: none;
+}
+.broadcast-row input:focus {
+  box-shadow: var(--shadow-sm) var(--shadow-sm) 0 0 var(--accent);
+}
+.broadcast-row input:disabled {
+  opacity: 0.5;
+}
+
+/* Responsive two-up grid of labelled fields (numbers, text, segs). */
+.adv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+.adv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.adv-field .field-label {
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* A field that should span the full grid width (e.g. MOTD). */
+.adv-field-wide {
+  grid-column: 1 / -1;
+}
+/* A standalone field below the grid (gamemode, whitelist). */
+.adv-field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* In a column-layout field (PvP, Allow flight, advanced bool rules, gamemode,
+   whitelist) the seg must hug its two buttons instead of stretching to the full
+   field width — otherwise the unselected half blends into the section background
+   and looks like one oversized button. */
+.adv-field .seg {
+  align-self: flex-start;
+}
+.adv-input {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--inset);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 11px;
+  outline: none;
+}
+.adv-input:focus {
+  box-shadow: var(--shadow-sm) var(--shadow-sm) 0 0 var(--accent);
+}
+
+/* 4-up grid for the default-join gamemode picker. */
+.diff-grid.quad {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Small amber pill: "applies on next restart". */
+.restart-badge {
+  font-size: 9.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--amber-ink);
+  background: var(--amber);
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* ============================================================
    FOOTER
    ============================================================ */
 footer {
@@ -858,28 +925,6 @@ footer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-/* Tiny, dim, unlabeled — easy to overlook, there if you go looking. */
-.cheats-trigger {
-  flex-shrink: 0;
-  padding: 0;
-  width: 16px;
-  height: 16px;
-  line-height: 1;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--muted);
-  background: none;
-  border: none;
-  border-radius: 4px;
-  box-shadow: none;
-  opacity: 0.25;
-  cursor: pointer;
-}
-.cheats-trigger:hover {
-  opacity: 0.7;
-  transform: none;
-  box-shadow: none;
 }
 
 /* ============================================================

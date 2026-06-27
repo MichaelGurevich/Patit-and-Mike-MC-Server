@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { clampField, diffFromLoadedSnapshot } from '../../shared/helpers'
 
 type State = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'error'
 
@@ -30,39 +31,32 @@ type ServerEvent =
   | { type: 'advancement'; name: string; kind: string; title: string }
   | { type: 'list'; online: number; max: number; names: string[] }
   | { type: 'perf'; mspt: number; tps: number }
+  | { type: 'countdown'; secondsLeft: number }
+  | { type: 'countdownCancelled' }
 
-// `cheat` commands change the world in non-vanilla ways. They are deliberately
-// hidden behind a collapsed drawer AND a type-the-gibberish gate so they are
-// annoying to reach — the whole point is to discourage casual cheating and keep
-// play vanilla. Non-cheat commands (save, list) stay as easy one-click buttons.
-type Cmd = { label: string; cmd: string | string[]; cheat?: boolean }
+// One-click console commands. The Console tab keeps just the harmless ones (save,
+// list); the world-changing time/weather buttons now live in Advanced "Live world"
+// (see LIVE_WORLD) where they're plain buttons — no gibberish gate any more.
+type Cmd = { label: string; cmd: string | string[] }
 
 const QUICK: Cmd[] = [
   { label: '💾 Save', cmd: 'save-all flush' },
-  { label: '👥 Who’s on', cmd: 'list' },
-  { label: '☀ Day', cmd: 'time set day', cheat: true },
-  { label: '🌅 Noon', cmd: 'time set noon', cheat: true },
-  { label: '🌙 Night', cmd: 'time set night', cheat: true },
-  { label: '🌌 Midnight', cmd: 'time set midnight', cheat: true },
-  { label: '🌤 Clear', cmd: 'weather clear', cheat: true },
-  { label: '🌧 Rain', cmd: 'weather rain', cheat: true },
-  { label: '⛈ Thunder', cmd: 'weather thunder', cheat: true },
-  { label: '🛏 Cozy night', cmd: ['time set night', 'weather clear', 'difficulty peaceful'], cheat: true }
+  { label: '👥 Who’s on', cmd: 'list' }
 ]
 
-// Build a pronounceable-but-nonsense word the user must retype to confirm a
-// cheat. Length is the friction: long enough that copying it from muscle memory
-// is impossible, so each use is a deliberate choice.
-const GIB_CONS = 'bcdfghjklmnpqrstvwxz'
-const GIB_VOWELS = 'aeiou'
-function gibberish(syllables = 4): string {
-  let w = ''
-  for (let i = 0; i < syllables; i++) {
-    w += GIB_CONS[Math.floor(Math.random() * GIB_CONS.length)]
-    w += GIB_VOWELS[Math.floor(Math.random() * GIB_VOWELS.length)]
-  }
-  return w
-}
+// Live-world buttons surfaced in the Advanced tab. All require a running server.
+const LIVE_TIME: Cmd[] = [
+  { label: '☀ Day', cmd: 'time set day' },
+  { label: '🌅 Noon', cmd: 'time set noon' },
+  { label: '🌙 Night', cmd: 'time set night' },
+  { label: '🌌 Midnight', cmd: 'time set midnight' },
+  { label: '🛏 Cozy night', cmd: ['time set night', 'weather clear'] }
+]
+const LIVE_WEATHER: Cmd[] = [
+  { label: '🌤 Clear', cmd: 'weather clear' },
+  { label: '🌧 Rain', cmd: 'weather rain' },
+  { label: '⛈ Thunder', cmd: 'weather thunder' }
+]
 
 const DIFFICULTIES: { id: string; label: string }[] = [
   { id: 'peaceful', label: '☮ Peaceful' },
@@ -121,6 +115,19 @@ const VANILLA_DEFAULTS: Record<string, string> = {
   randomTickSpeed: '3',
   spawnRadius: '10'
 }
+
+// Default join gamemode options for the Advanced server-settings picker.
+const GAMEMODES: { id: string; label: string }[] = [
+  { id: 'survival', label: '⚔ Survival' },
+  { id: 'creative', label: '🧱 Creative' },
+  { id: 'adventure', label: '🗺 Adventure' },
+  { id: 'spectator', label: '👻 Spectator' }
+]
+
+// The five game rules surfaced only in Advanced (added to the 10 in the Game
+// rules tab). Booleans render as on/off segs; numbers as clamped inputs.
+const ADV_BOOL_RULES = ['doMobLoot', 'doTileDrops']
+const ADV_NUM_RULES = ['randomTickSpeed', 'playersSleepingPercentage', 'spawnRadius']
 
 const STATE_LABEL: Record<State, string> = {
   idle: 'Idle',
@@ -248,8 +255,91 @@ function SessionStatus({
   )
 }
 
+// Small amber "applies on next restart" pill shown beside restart-only fields
+// whose current value differs from what the running server loaded at start.
+function RestartBadge(): JSX.Element {
+  return <span className="restart-badge">applies on next restart</span>
+}
+
+// A labelled numeric field for the Advanced grid. It edits a local draft string so
+// the user can type freely, then commits the CLAMPED value on blur / Enter — the
+// parent clamps and reflects the bounded value back through `value`.
+function NumField({
+  label,
+  value,
+  onCommit,
+  badge,
+  mono
+}: {
+  label: string
+  value: string
+  onCommit: (raw: string) => void
+  badge?: boolean
+  mono?: boolean
+}): JSX.Element {
+  const [draft, setDraft] = useState(value)
+  // Keep the draft in sync when the canonical (clamped) value changes elsewhere.
+  useEffect(() => setDraft(value), [value])
+  return (
+    <div className="adv-field">
+      <div className={`field-label${mono ? ' rule-name' : ''}`}>
+        {label}
+        {badge && <RestartBadge />}
+      </div>
+      <input
+        className="adv-input"
+        type="number"
+        inputMode="numeric"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => onCommit(draft)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
+      />
+    </div>
+  )
+}
+
+// A labelled free-text field for the Advanced grid (e.g. MOTD). Commits on blur /
+// Enter so we don't persist on every keystroke.
+function TextField({
+  label,
+  value,
+  onCommit,
+  badge,
+  wide
+}: {
+  label: string
+  value: string
+  onCommit: (text: string) => void
+  badge?: boolean
+  wide?: boolean
+}): JSX.Element {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  return (
+    <div className={`adv-field${wide ? ' adv-field-wide' : ''}`}>
+      <div className="field-label">
+        {label}
+        {badge && <RestartBadge />}
+      </div>
+      <input
+        className="adv-input"
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => onCommit(draft)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
+      />
+    </div>
+  )
+}
+
 type Theme = 'light' | 'dark'
-type Tab = 'console' | 'players' | 'rules'
+type Tab = 'console' | 'players' | 'rules' | 'advanced'
 
 export default function App(): JSX.Element {
   const [theme, setTheme] = useState<Theme>(
@@ -281,15 +371,24 @@ export default function App(): JSX.Element {
     port: '25565'
   })
   const [copied, setCopied] = useState('')
-  // Whether the hidden cheats drawer is revealed (false every launch — you must
-  // consciously find and press the trigger to see the cheat buttons at all).
-  const [showCheats, setShowCheats] = useState(false)
-  // Active cheat-confirmation gate, or null when no popup is open.
-  const [gate, setGate] = useState<{ label: string; cmd: string | string[]; word: string } | null>(null)
-  const [gateInput, setGateInput] = useState('')
+
+  // ----- Advanced tab state -----
+  // Live, enforced Stop & Save countdown (seconds left), or null when not counting
+  // down. Driven entirely by 'countdown'/'countdownCancelled' events from main.
+  const [countdown, setCountdown] = useState<number | null>(null)
+  // Master in-game notify toggle (gates the automatic `say` pings).
+  const [notify, setNotify] = useState(true)
+  // Free-text broadcast box (only meaningful while running).
+  const [broadcast, setBroadcast] = useState('')
+  // Full server.properties map (current persisted values) + the restart-only
+  // snapshot the running process loaded at start (null when stopped).
+  const [props, setProps] = useState<Record<string, string>>({})
+  const [loadedProps, setLoadedProps] = useState<Record<string, string> | null>(null)
+  // Raw string values for the 5 advanced game rules (separate from the boolean
+  // `ruleState` used by the Game rules tab so numbers survive round-trips).
+  const [advRules, setAdvRules] = useState<Record<string, string>>({})
 
   const consoleRef = useRef<HTMLDivElement>(null)
-  const gateRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -314,10 +413,31 @@ export default function App(): JSX.Element {
     }
   }, [])
 
+  // Load the FULL server.properties map (the Advanced server-settings section
+  // reads from it) and keep the sidebar Difficulty in sync from the same fetch.
   const loadProps = useCallback(async () => {
     try {
       const p = await window.api.getProps()
+      setProps(p)
       setDifficulty((p.difficulty ?? '').trim())
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // The restart-only snapshot the running process loaded at start — null when
+  // stopped. Drives the "applies on next restart" badge via diffFromLoadedSnapshot.
+  const loadLoadedProps = useCallback(async () => {
+    try {
+      setLoadedProps(await window.api.getLoadedProps())
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const loadNotify = useCallback(async () => {
+    try {
+      setNotify(await window.api.getNotify())
     } catch {
       /* ignore */
     }
@@ -333,6 +453,14 @@ export default function App(): JSX.Element {
         if (v === 'true' || v === 'false') next[r] = v === 'true'
       }
       setRuleState(next)
+      // Advanced rules keep raw string values (booleans AND numbers); fall back to
+      // vanilla defaults so the inputs/segs are never blank.
+      const adv: Record<string, string> = {}
+      for (const r of [...ADV_BOOL_RULES, ...ADV_NUM_RULES]) adv[r] = VANILLA_DEFAULTS[r] ?? ''
+      for (const [r, v] of Object.entries(stored)) {
+        if (r in adv) adv[r] = v
+      }
+      setAdvRules(adv)
     } catch {
       /* ignore */
     }
@@ -357,6 +485,43 @@ export default function App(): JSX.Element {
     void window.api.setMemory(mb).then(() => loadMem()) // reconcile with clamped value
   }
 
+  // ----- Advanced server-settings persistence -----
+  // All of these write to a file via window.api regardless of run state, so the
+  // Advanced fields stay editable while stopped (the value applies on next start).
+
+  // Persist a server.properties key (optimistic; the API writes to the file).
+  const setProp = (key: string, value: string): void => {
+    setProps((p) => ({ ...p, [key]: value }))
+    void window.api.setProp(key, value)
+  }
+  // Clamp a numeric server.properties field to its bound, then persist the CLAMPED
+  // value (never the raw text) and reflect it back into the input.
+  const commitNumProp = (key: string, raw: string): void => {
+    const v = clampField(key, Number(raw))
+    setProp(key, String(v))
+  }
+  const toggleNotify = (next: boolean): void => {
+    setNotify(next)
+    void window.api.setNotify(next)
+  }
+  const sendBroadcast = (e: FormEvent): void => {
+    e.preventDefault()
+    const t = broadcast.trim()
+    if (!t) return
+    void window.api.broadcast(t)
+    setBroadcast('')
+  }
+
+  // Persist an advanced game rule (remembered + applied live by main). Numbers are
+  // clamped to their bound first so a wild value can't be written.
+  const setAdvRule = (rule: string, value: string): void => {
+    setAdvRules((p) => ({ ...p, [rule]: value }))
+    void window.api.setGameRule(rule, value)
+  }
+  const commitAdvNumRule = (rule: string, raw: string): void => {
+    setAdvRule(rule, String(clampField(rule, Number(raw))))
+  }
+
   const loadConnect = useCallback(async () => {
     try {
       setConnect(await window.api.getConnectInfo())
@@ -377,6 +542,8 @@ export default function App(): JSX.Element {
     void refresh()
     void loadRoster()
     void loadProps()
+    void loadLoadedProps()
+    void loadNotify()
     void loadRules()
     void loadConnect()
     void loadMem()
@@ -384,6 +551,11 @@ export default function App(): JSX.Element {
     const offState = window.api.onState((s) => {
       setState(s as State)
       void refresh()
+      // The loaded snapshot changes meaning at every transition (a new start
+      // re-snapshots; a stop clears it), so refresh it — and the live props — here.
+      void loadProps()
+      void loadLoadedProps()
+      if (s === 'stopping' || s === 'stopped' || s === 'error') setCountdown(null)
       if (s === 'stopped' || s === 'error') {
         setOnline([])
         setPerf(null)
@@ -396,7 +568,10 @@ export default function App(): JSX.Element {
         case 'ready':
           setReadyAt(Date.now())
           setOnline([])
+          setCountdown(null)
           void loadConnect()
+          void loadProps()
+          void loadLoadedProps()
           break
         case 'joined':
           setOnline((p) => (p.includes(ev.name) ? p : [...p, ev.name]))
@@ -413,6 +588,12 @@ export default function App(): JSX.Element {
         case 'saved':
           void loadRoster()
           break
+        case 'countdown':
+          setCountdown(ev.secondsLeft)
+          break
+        case 'countdownCancelled':
+          setCountdown(null)
+          break
         default:
           break
       }
@@ -423,18 +604,13 @@ export default function App(): JSX.Element {
       offLock()
       offEvent()
     }
-  }, [refresh, loadRoster, loadProps, loadRules, loadConnect, loadMem])
+  }, [refresh, loadRoster, loadProps, loadLoadedProps, loadNotify, loadRules, loadConnect, loadMem])
 
   // Uptime ticker (only meaningful while running).
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
-
-  // Focus the gate input when the cheat popup opens.
-  useEffect(() => {
-    if (gate) gateRef.current?.focus()
-  }, [gate])
 
   const visibleLines = useMemo(() => {
     const f = filter.trim().toLowerCase()
@@ -461,28 +637,6 @@ export default function App(): JSX.Element {
     e.preventDefault()
     sendCmd(cmd)
     setCmd('')
-  }
-
-  // Run a quick command. Cheats open the gibberish gate first; everything else
-  // (save, list) fires immediately.
-  const runQuick = (q: Cmd): void => {
-    if (!q.cheat) {
-      sendCmd(q.cmd)
-      return
-    }
-    setGateInput('')
-    setGate({ label: q.label, cmd: q.cmd, word: gibberish() })
-  }
-  const gateOk = gate !== null && gateInput === gate.word
-  const confirmGate = (): void => {
-    if (!gateOk || !gate) return
-    sendCmd(gate.cmd)
-    setGate(null)
-    setGateInput('')
-  }
-  const cancelGate = (): void => {
-    setGate(null)
-    setGateInput('')
   }
 
   const togglePerf = (): void => {
@@ -537,6 +691,11 @@ export default function App(): JSX.Element {
 
   const uptime = running && readyAt ? fmtDuration(now - readyAt) : null
 
+  // Restart-only fields whose current value differs from what the running process
+  // loaded at start — each gets an "applies on next restart" badge. Empty when
+  // stopped (no loaded snapshot to diff against).
+  const restartChanged = running && loadedProps ? diffFromLoadedSnapshot(props, loadedProps) : []
+
   return (
     <div className="app">
       {/* ---------- Top bar ---------- */}
@@ -586,11 +745,18 @@ export default function App(): JSX.Element {
                   ▶ Start &amp; Play
                 </button>
               )}
-              {running && (
-                <button className="danger big" onClick={() => void window.api.stop()}>
-                  ■ Stop &amp; Save
-                </button>
-              )}
+              {running &&
+                (countdown != null ? (
+                  // Mid-countdown: the button becomes a Cancel affordance so a
+                  // misclicked Stop can be reversed before the server goes down.
+                  <button className="danger big" onClick={() => void window.api.cancelStop()}>
+                    ■ Stopping in {countdown}s… — Cancel
+                  </button>
+                ) : (
+                  <button className="danger big" onClick={() => void window.api.stop()}>
+                    ■ Stop &amp; Save
+                  </button>
+                ))}
               {busy && (
                 <button className="big" disabled>
                   {state === 'starting' ? 'Starting…' : 'Saving & uploading…'}
@@ -614,37 +780,6 @@ export default function App(): JSX.Element {
                   {running ? 'Applied live' : 'Saved for next start'}
                 </span>
               </div>
-
-              {mem && (
-                <div>
-                  <div className="field-label">Server memory (RAM)</div>
-                  <div className="diff-grid">
-                    {memChoicesMB(mem.totalMB, mem.defaultMB, mem.overrideMB).map((mb) => {
-                      const selected = (mem.overrideMB ?? mem.defaultMB) === mb
-                      return (
-                        <button
-                          key={mb}
-                          className={selected ? 'on' : ''}
-                          onClick={() => changeMem(mb)}
-                        >
-                          {gbLabel(mb)}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {(() => {
-                    const selectedMB = mem.overrideMB ?? mem.defaultMB
-                    const high = selectedMB > mem.totalMB * 0.8
-                    return (
-                      <span className={`muted hint2${high ? ' warn' : ''}`}>
-                        {high
-                          ? `⚠ That's most of this PC's ${gbLabel(mem.totalMB)} — leave some for your system.`
-                          : `Default ${gbLabel(mem.defaultMB)} · this PC has ${gbLabel(mem.totalMB)} · applies on next start.`}
-                      </span>
-                    )
-                  })()}
-                </div>
-              )}
             </div>
           </section>
 
@@ -740,6 +875,12 @@ export default function App(): JSX.Element {
             >
               ⚙ Game rules
             </button>
+            <button
+              className={`tab ${tab === 'advanced' ? 'active' : ''}`}
+              onClick={() => setTab('advanced')}
+            >
+              🛠 Advanced
+            </button>
           </div>
 
           {tab === 'console' && (
@@ -800,8 +941,8 @@ export default function App(): JSX.Element {
               </form>
 
               <div className="quick">
-                {QUICK.filter((q) => !q.cheat).map((q) => (
-                  <button key={q.label} disabled={!running} onClick={() => runQuick(q)}>
+                {QUICK.map((q) => (
+                  <button key={q.label} disabled={!running} onClick={() => sendCmd(q.cmd)}>
                     {q.label}
                   </button>
                 ))}
@@ -888,81 +1029,273 @@ export default function App(): JSX.Element {
               </div>
             </div>
           )}
+
+          {tab === 'advanced' && (
+            <div className="tabpanel">
+              {/* ----- Notifications ----- */}
+              <section className="adv-section">
+                <div className="adv-section-title">🔔 Notifications</div>
+                <div className="adv-row">
+                  <div className="adv-field">
+                    <div className="field-label">Notify players in-game</div>
+                    <span className="muted hint2">
+                      Master switch for the automatic in-game chat messages (server
+                      ready, difficulty, whitelist, rules, stop countdown).
+                    </span>
+                  </div>
+                  <div className="seg">
+                    <button className={notify ? 'on' : ''} onClick={() => toggleNotify(true)}>
+                      On
+                    </button>
+                    <button className={!notify ? 'on' : ''} onClick={() => toggleNotify(false)}>
+                      Off
+                    </button>
+                  </div>
+                </div>
+                <form className="broadcast-row" onSubmit={sendBroadcast}>
+                  <input
+                    placeholder={
+                      running ? 'Broadcast a message to players…' : 'Start the server to broadcast'
+                    }
+                    value={broadcast}
+                    disabled={!running}
+                    onChange={(e) => setBroadcast(e.target.value)}
+                  />
+                  <button className="primary" type="submit" disabled={!running || !broadcast.trim()}>
+                    Send
+                  </button>
+                </form>
+                <span className="muted hint2">Broadcast works only while the server is running.</span>
+              </section>
+
+              {/* ----- Server memory (RAM) — moved here from the sidebar ----- */}
+              {mem && (
+                <section className="adv-section">
+                  <div className="adv-section-title">🧠 Server memory (RAM)</div>
+                  <div className="diff-grid">
+                    {memChoicesMB(mem.totalMB, mem.defaultMB, mem.overrideMB).map((mb) => {
+                      const selected = (mem.overrideMB ?? mem.defaultMB) === mb
+                      return (
+                        <button
+                          key={mb}
+                          className={selected ? 'on' : ''}
+                          onClick={() => changeMem(mb)}
+                        >
+                          {gbLabel(mb)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {(() => {
+                    const selectedMB = mem.overrideMB ?? mem.defaultMB
+                    const high = selectedMB > mem.totalMB * 0.8
+                    return (
+                      <span className={`muted hint2${high ? ' warn' : ''}`}>
+                        {high
+                          ? `⚠ That's most of this PC's ${gbLabel(mem.totalMB)} — leave some for your system.`
+                          : `Default ${gbLabel(mem.defaultMB)} · this PC has ${gbLabel(mem.totalMB)} · applies on next start.`}
+                      </span>
+                    )
+                  })()}
+                </section>
+              )}
+
+              {/* ----- Server settings (server.properties) ----- */}
+              <section className="adv-section">
+                <div className="adv-section-title">🖥 Server settings</div>
+                <div className="adv-grid">
+                  <NumField
+                    label="Max players"
+                    badge={restartChanged.includes('max-players')}
+                    value={props['max-players'] ?? ''}
+                    onCommit={(v) => commitNumProp('max-players', v)}
+                  />
+                  <NumField
+                    label="View distance"
+                    badge={restartChanged.includes('view-distance')}
+                    value={props['view-distance'] ?? ''}
+                    onCommit={(v) => commitNumProp('view-distance', v)}
+                  />
+                  <NumField
+                    label="Simulation distance"
+                    badge={restartChanged.includes('simulation-distance')}
+                    value={props['simulation-distance'] ?? ''}
+                    onCommit={(v) => commitNumProp('simulation-distance', v)}
+                  />
+                  <NumField
+                    label="Spawn protection"
+                    badge={restartChanged.includes('spawn-protection')}
+                    value={props['spawn-protection'] ?? ''}
+                    onCommit={(v) => commitNumProp('spawn-protection', v)}
+                  />
+                  <div className="adv-field">
+                    <div className="field-label">
+                      PvP{restartChanged.includes('pvp') && <RestartBadge />}
+                    </div>
+                    <div className="seg">
+                      <button
+                        className={props['pvp'] === 'true' ? 'on' : ''}
+                        onClick={() => setProp('pvp', 'true')}
+                      >
+                        On
+                      </button>
+                      <button
+                        className={props['pvp'] === 'false' ? 'on' : ''}
+                        onClick={() => setProp('pvp', 'false')}
+                      >
+                        Off
+                      </button>
+                    </div>
+                  </div>
+                  <div className="adv-field">
+                    <div className="field-label">
+                      Allow flight
+                      {restartChanged.includes('allow-flight') && <RestartBadge />}
+                    </div>
+                    <div className="seg">
+                      <button
+                        className={props['allow-flight'] === 'true' ? 'on' : ''}
+                        onClick={() => setProp('allow-flight', 'true')}
+                      >
+                        On
+                      </button>
+                      <button
+                        className={props['allow-flight'] === 'false' ? 'on' : ''}
+                        onClick={() => setProp('allow-flight', 'false')}
+                      >
+                        Off
+                      </button>
+                    </div>
+                  </div>
+                  <TextField
+                    label="MOTD"
+                    wide
+                    badge={restartChanged.includes('motd')}
+                    value={props['motd'] ?? ''}
+                    onCommit={(v) => setProp('motd', v)}
+                  />
+                </div>
+
+                <div className="adv-field adv-field-block">
+                  <div className="field-label">Default join gamemode</div>
+                  <div className="diff-grid quad">
+                    {GAMEMODES.map((g) => (
+                      <button
+                        key={g.id}
+                        className={(props['gamemode'] ?? '').trim() === g.id ? 'on' : ''}
+                        onClick={() => {
+                          setProps((p) => ({ ...p, gamemode: g.id })) // optimistic
+                          void window.api.setGamemode(g.id)
+                        }}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="muted hint2">
+                    Affects NEW joins only — players already on keep their current mode.
+                  </span>
+                </div>
+
+                <div className="adv-field adv-field-block">
+                  <div className="field-label">Whitelist</div>
+                  <div className="seg">
+                    <button
+                      className={props['white-list'] === 'true' ? 'on' : ''}
+                      onClick={() => {
+                        setProps((p) => ({ ...p, 'white-list': 'true' })) // optimistic
+                        void window.api.setWhitelist(true)
+                      }}
+                    >
+                      On
+                    </button>
+                    <button
+                      className={props['white-list'] === 'false' ? 'on' : ''}
+                      onClick={() => {
+                        setProps((p) => ({ ...p, 'white-list': 'false' })) // optimistic
+                        void window.api.setWhitelist(false)
+                      }}
+                    >
+                      Off
+                    </button>
+                  </div>
+                  <span className="muted hint2">
+                    Locks the server to known players. To add a third person, run{' '}
+                    <code>/whitelist add &lt;name&gt;</code> in the console.
+                  </span>
+                </div>
+              </section>
+
+              {/* ----- Game rules (advanced) ----- */}
+              <section className="adv-section">
+                <div className="adv-section-title">⚙ Game rules (advanced)</div>
+                <div className="adv-grid">
+                  {ADV_BOOL_RULES.map((r) => (
+                    <div className="adv-field" key={r}>
+                      <div className="field-label rule-name">{r}</div>
+                      <div className="seg">
+                        <button
+                          className={advRules[r] === 'true' ? 'on' : ''}
+                          onClick={() => setAdvRule(r, 'true')}
+                        >
+                          On
+                        </button>
+                        <button
+                          className={advRules[r] === 'false' ? 'on' : ''}
+                          onClick={() => setAdvRule(r, 'false')}
+                        >
+                          Off
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {ADV_NUM_RULES.map((r) => (
+                    <NumField
+                      key={r}
+                      label={r}
+                      mono
+                      value={advRules[r] ?? ''}
+                      onCommit={(v) => commitAdvNumRule(r, v)}
+                    />
+                  ))}
+                </div>
+                <span className="muted hint2">
+                  {running ? 'Applied live and remembered.' : 'Remembered and applied on next start.'}
+                </span>
+              </section>
+
+              {/* ----- Live world ----- */}
+              <section className="adv-section">
+                <div className="adv-section-title">🌍 Live world</div>
+                <div className="adv-field adv-field-block">
+                  <div className="field-label">Time</div>
+                  <div className="quick">
+                    {LIVE_TIME.map((q) => (
+                      <button key={q.label} disabled={!running} onClick={() => sendCmd(q.cmd)}>
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="adv-field adv-field-block">
+                  <div className="field-label">Weather</div>
+                  <div className="quick">
+                    {LIVE_WEATHER.map((q) => (
+                      <button key={q.label} disabled={!running} onClick={() => sendCmd(q.cmd)}>
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <span className="muted hint2">Only works while you&apos;re hosting.</span>
+              </section>
+            </div>
+          )}
         </main>
       </div>
 
-      {gate && (
-        <div className="gate-overlay" onClick={cancelGate}>
-          <div className="gate-card" onClick={(e) => e.stopPropagation()}>
-            <h3>Run a cheat?</h3>
-            <p>
-              You’re about to run <strong>{gate.label}</strong>. This breaks vanilla play.
-            </p>
-            <p className="muted">To confirm, type this word exactly:</p>
-            <div className="gate-word">{gate.word}</div>
-            <input
-              ref={gateRef}
-              className="gate-input"
-              placeholder="type the word above"
-              value={gateInput}
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              onChange={(e) => setGateInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') confirmGate()
-                if (e.key === 'Escape') cancelGate()
-              }}
-            />
-            <div className="gate-actions">
-              <button onClick={cancelGate}>Cancel</button>
-              <button className="primary" disabled={!gateOk} onClick={confirmGate}>
-                Run it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCheats && (
-        <div className="gate-overlay" onClick={() => setShowCheats(false)}>
-          <div className="gate-card" onClick={(e) => e.stopPropagation()}>
-            <h3>⚠ Cheats — break vanilla play</h3>
-            <p className="muted">
-              These change time and weather. Each still needs a typed confirmation — on purpose.
-            </p>
-            <div className="quick cheats-grid">
-              {QUICK.filter((q) => q.cheat).map((q) => (
-                <button
-                  key={q.label}
-                  disabled={!running}
-                  onClick={() => {
-                    setShowCheats(false)
-                    runQuick(q)
-                  }}
-                >
-                  {q.label}
-                </button>
-              ))}
-            </div>
-            <div className="gate-actions">
-              <button onClick={() => setShowCheats(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <footer>
         <span className="footer-path">{repoRoot}</span>
-        {/* Deliberately tiny and unlabeled: you have to go looking for it. */}
-        <button
-          className="cheats-trigger"
-          title="Cheats"
-          aria-label="Cheats"
-          onClick={() => setShowCheats(true)}
-        >
-          ⋄
-        </button>
       </footer>
     </div>
   )

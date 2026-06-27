@@ -10,6 +10,10 @@ export type ServerEvent =
   | { type: 'advancement'; name: string; kind: string; title: string }
   | { type: 'list'; online: number; max: number; names: string[] }
   | { type: 'perf'; mspt: number; tps: number }
+  // Emitted by ServerController (not parsed from log lines) during the enforced
+  // Stop & Save countdown — included here because ServerEvent is the shared event type.
+  | { type: 'countdown'; secondsLeft: number }
+  | { type: 'countdownCancelled' }
 
 function strip(line: string): string {
   const m = line.match(/^\[[0-9:]+\]\s\[[^\]]*\/[A-Z]+\]:\s?(.*)$/)
