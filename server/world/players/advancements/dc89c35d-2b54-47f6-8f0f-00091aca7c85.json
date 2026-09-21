@@ -673,5 +673,11 @@
     },
     "done": true
   },
-  "DataVersion": 4903
+  "minecraft:recipes/transportation/poplar_chest_boat": {
+    "criteria": {
+      "has_boat": "2026-09-21 19:09:17 +0300"
+    },
+    "done": true
+  },
+  "DataVersion": 5023
 }
